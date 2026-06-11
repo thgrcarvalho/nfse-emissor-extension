@@ -108,11 +108,21 @@ function parseCompetencia(br) {
 // Parses a pt-BR (or plain) decimal: '1.234,56' / '1234,56' / '5.1687' / '7.000' → number.
 // With a comma, dots are thousands separators; without one, dots in a 3-digit-group
 // pattern are thousands ('7.000' → 7000), otherwise the dot is the decimal point.
+// Tolerates a pasted currency prefix ('R$ 1.234,56').
 function num(v) {
+  let s = String(v == null ? '' : v).trim().replace(/\s+/g, '').replace(/^(r\$|us\$|\$)/i, '');
+  if (!s) return 0;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+// Exchange rates never use thousands grouping — without a comma, a dot is always the
+// decimal point ('5.168' is 5.168, NOT 5168). Use this for the câmbio field.
+function numRate(v) {
   let s = String(v == null ? '' : v).trim().replace(/\s+/g, '');
   if (!s) return 0;
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
-  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
@@ -124,7 +134,7 @@ const fmtUsd = (n) =>
   Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function recomputeValor() {
-  const brl = num($('usd').value) * num($('cambio').value);
+  const brl = num($('usd').value) * numRate($('cambio').value);
   $('valorBRL').textContent = brl
     ? brl.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : 'R$ —';
@@ -168,12 +178,13 @@ function invalidateRate() {
 }
 
 async function refreshRate() {
+  clearTimeout(rateTimer); // an explicit/early run cancels a pending debounced duplicate
   const gen = ++rateGen;
   const info = $('ptaxInfo');
   const comp = getCompetenciaBR();
   if (!parseCompetencia(comp)) {
-    info.className = 'ptax';
-    info.textContent = '';
+    info.className = comp ? 'ptax bad' : 'ptax';
+    info.textContent = comp ? 'Data de competência inválida — use dd/mm/aaaa.' : '';
     return;
   }
   $('refreshRate').disabled = true;
@@ -355,7 +366,9 @@ async function refreshView() {
       // Different client or different profile than the per-run USD belongs to:
       // adopt this profile's reference value instead of carrying a stale amount.
       adoptProfileUsd(loggedCnpj, profile, source);
-    } else if (!num($('usd').value) && profile.valor && profile.valor.usd) {
+    } else if (!$('usd').value.trim() && profile.valor && profile.valor.usd) {
+      // Backfill only a truly empty field — never overwrite visible text the parser
+      // couldn't read (e.g. a paste with a currency prefix num() rejected).
       $('usd').value = fmtUsd(profile.valor.usd);
       saveState();
     }
@@ -403,7 +416,7 @@ async function renderNotaView(tabId) {
     row('Município', p.servico && p.servico.municipio ? p.servico.municipio.text : '') +
     row('CTN', p.servico && p.servico.ctn ? p.servico.ctn.value : '') +
     row('Alíquota SN', p.tributacao ? p.tributacao.aliquota_sn : '') +
-    row('USD padrão', p.valor ? p.valor.usd : '') +
+    row('USD padrão', p.valor && p.valor.usd ? fmtUsd(p.valor.usd) : '') +
     row('Descrição', descr.length > 90 ? descr.slice(0, 90) + '…' : descr);
   // Fields the parser couldn't read stay EMPTY (never inherited from another profile) —
   // tell the user before they use or save this as the client's padrão.
@@ -490,12 +503,21 @@ $('competenciaPicker').addEventListener('change', () => {
   clearTimeout(rateTimer);
   rateTimer = setTimeout(refreshRate, 300);
 });
-for (const id of ['usd', 'cambio']) {
-  $(id).addEventListener('input', () => {
-    recomputeValor();
-    saveState();
-  });
-}
+$('usd').addEventListener('input', () => {
+  recomputeValor();
+  saveState();
+});
+$('cambio').addEventListener('input', () => {
+  // Manual entry wins: cancel any in-flight/pending PTAX fetch so it can't overwrite
+  // what the user typed, and drop the PTAX label — it no longer describes this value.
+  rateGen++;
+  clearTimeout(rateTimer);
+  $('ptaxInfo').className = 'ptax';
+  $('ptaxInfo').textContent = '';
+  $('refreshRate').disabled = false;
+  recomputeValor();
+  saveState();
+});
 $('refreshRate').addEventListener('click', refreshRate);
 $('openPortal').addEventListener('click', () => ext.tabs.create({ url: PORTAL_LOGIN }));
 $('goLogin').addEventListener('click', () => ext.tabs.update({ url: PORTAL_LOGIN }));
@@ -540,15 +562,22 @@ $('fill').addEventListener('click', async () => {
     status.textContent = 'Informe o valor (US$) do serviço.';
     return;
   }
-  if (!num($('cambio').value)) {
+  const rate = numRate($('cambio').value);
+  if (!rate) {
     status.className = 'bad';
     status.textContent = 'Informe o câmbio (PTAX) para calcular o valor.';
+    return;
+  }
+  if (rate < 0.5 || rate > 50) {
+    // No USD/BRL rate looks like this — almost certainly a typo or format slip.
+    status.className = 'bad';
+    status.textContent = `Câmbio fora do esperado (${fmtRate(rate)}) — confira o valor digitado.`;
     return;
   }
   const state = {
     competencia: getCompetenciaBR(),
     usd: num($('usd').value),
-    cambio: num($('cambio').value),
+    cambio: rate,
     valorBRL: Math.round(valorBRL * 100) / 100,
   };
   $('fill').disabled = true;
@@ -619,6 +648,6 @@ async function init() {
     runSource = saved.source || null;
   }
   recomputeValor();
-  if (!num($('cambio').value)) refreshRate();
+  if (!numRate($('cambio').value)) refreshRate();
   await refreshView();
 }
