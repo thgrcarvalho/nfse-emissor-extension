@@ -46,6 +46,13 @@
     <div class="ident" id="identity" style="display: none"></div>
     <div class="profinfo" id="profileInfo" style="display: none"></div>
 
+    <div id="needPerms" style="display: none">
+      <p>A extensão precisa de <strong>permissão de acesso</strong> ao Emissor Nacional (e ao Banco Central, para buscar o câmbio).</p>
+      <p class="hint">O Firefox não concede essa permissão automaticamente ao carregar a extensão — clique abaixo e aceite. Depois disso, a página do portal será recarregada.</p>
+      <button id="grantPerms" type="button">Conceder permissões</button>
+      <div id="permsStatus" class="hint bad"></div>
+    </div>
+
     <div id="wrongSite" style="display: none">
       <p>Esta extensão funciona apenas no <strong>Emissor Nacional</strong> (www.nfse.gov.br/EmissorNacional).</p>
       <p class="hint">Abra o portal e faça login para usar.</p>

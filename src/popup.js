@@ -213,14 +213,30 @@ async function refreshRate() {
 function isPortalUrl(url) {
   try {
     const u = new URL(url);
-    return /(^|\.)nfse\.gov\.br$/i.test(u.hostname) && /^\/EmissorNacional(\/|$)/i.test(u.pathname);
+    return (
+      u.protocol === 'https:' &&
+      /(^|\.)nfse\.gov\.br$/i.test(u.hostname) &&
+      /^\/EmissorNacional(\/|$)/i.test(u.pathname)
+    );
   } catch {
     return false;
   }
 }
 
+// Firefox MV3 treats host_permissions as optional and grants nothing on the
+// about:debugging install path — without the grant the content scripts never inject
+// and tab.url is unreadable. Detect that and offer an in-product request.
+const HOST_ORIGINS = ['https://*.nfse.gov.br/*', 'https://olinda.bcb.gov.br/*'];
+async function hasHostPermission() {
+  try {
+    return await ext.permissions.contains({ origins: [HOST_ORIGINS[0]] });
+  } catch {
+    return true; // API unavailable → assume install-time grant (Chrome/Edge)
+  }
+}
+
 function showView(name) {
-  for (const v of ['wrongSite', 'needLogin', 'noContact', 'noIdentity', 'idle', 'review', 'noProfile', 'nota', 'form']) {
+  for (const v of ['needPerms', 'wrongSite', 'needLogin', 'noContact', 'noIdentity', 'idle', 'review', 'noProfile', 'nota', 'form']) {
     $(v).style.display = v === name ? '' : 'none';
   }
 }
@@ -291,6 +307,13 @@ async function askContentState(tabId, retries = [350, 1100]) {
 
 async function refreshView() {
   const gen = ++viewGen; // a newer refresh supersedes this one after any await
+  if (!(await hasHostPermission())) {
+    if (gen !== viewGen) return;
+    $('profileInfo').style.display = 'none';
+    setIdentity(null);
+    showView('needPerms');
+    return;
+  }
   let tab;
   try {
     [tab] = await ext.tabs.query({ active: true, currentWindow: true });
@@ -531,6 +554,27 @@ for (const b of document.querySelectorAll('.reloadTab')) {
     } catch {}
   });
 }
+$('grantPerms').addEventListener('click', async () => {
+  // permissions.request must run directly on the user gesture — no awaits before it.
+  let granted = false;
+  try {
+    granted = await ext.permissions.request({ origins: HOST_ORIGINS });
+  } catch (e) {
+    $('permsStatus').textContent = 'Não foi possível pedir a permissão: ' + e.message;
+    return;
+  }
+  if (!granted) {
+    $('permsStatus').textContent = 'Permissão não concedida — sem ela a extensão não funciona.';
+    return;
+  }
+  $('permsStatus').textContent = '';
+  try {
+    // Content scripts only inject on (re)load — refresh the portal tab if it's open.
+    const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+    if (tab && isPortalUrl(tab.url)) await ext.tabs.reload(tab.id);
+  } catch {}
+  refreshView();
+});
 $('pickDate').addEventListener('click', () => {
   const p = $('competenciaPicker');
   try {
