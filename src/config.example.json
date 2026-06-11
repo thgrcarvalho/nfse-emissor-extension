@@ -1,0 +1,46 @@
+{
+  "label": "MINHA EMPRESA LTDA",
+  "cnpj": "00.000.000/0001-00",
+  "page1": {
+    "regime_sn": "1",
+    "tomador_motivo_nif": "2"
+  },
+  "tomador": {
+    "nome": "Example Client Inc.",
+    "endereco_exterior": {
+      "logradouro": "Main St",
+      "numero": "100",
+      "complemento": "",
+      "bairro": "Downtown",
+      "cidade": "Springfield",
+      "cep": "00000",
+      "estado": "Illinois",
+      "pais_codigo": "US"
+    }
+  },
+  "servico": {
+    "municipio": { "value": "3304557", "text": "Rio de Janeiro/RJ" },
+    "ctn": { "value": "14.02.01", "text": "14.02.01 - Assistência técnica." },
+    "complementar": { "value": "001", "text": "14.02.01.001 - Assistência técnica." },
+    "motivo_nao_tributacao": "3",
+    "pais_resultado": "US",
+    "descricao": "Os serviços prestados estão isentos de ISS conforme Lei 116/2003 artigo 2° inciso I\nArt.2° O imposto não incide sobre:\nI – as exportações de serviços para o exterior do País",
+    "nbs": { "value": "120012000", "text": "120012000 - Serviços de manutenção e reparação de computadores e seus periféricos e de maquinário para escritório" },
+    "comercio_exterior": {
+      "modo": "4",
+      "vinculo": "0",
+      "moeda": "840",
+      "mec_prest": "1",
+      "mec_tom": "1",
+      "mov_bens": "1",
+      "mdic": "0"
+    }
+  },
+  "tributacao": {
+    "pis_situacao": "8",
+    "pis_retencao": "0",
+    "valor_tributos_tipo": "4",
+    "aliquota_sn": "4,00"
+  },
+  "valor": { "mode": "usd_manual", "usd": 1000 }
+}
