@@ -83,7 +83,7 @@
       } catch (e) {
         res = { ok: false, err: String((e && e.message) || e) };
       }
-      results.push(Object.assign({ label: op.sel || op.name }, res));
+      results.push(Object.assign({ label: op.label || op.sel || op.name }, res));
       if (op.waitAfter) await sleep(op.waitAfter);
     }
     return results;

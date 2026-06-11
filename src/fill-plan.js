@@ -12,22 +12,22 @@
     if (pageId === 'pessoas') {
       const e = cfg.tomador.endereco_exterior;
       const ops = [
-        { t: 'text', sel: '#DataCompetencia', value: state.competencia },
-        { t: 'chosen', sel: '#SimplesNacional_RegimeApuracaoTributosSN', value: cfg.page1.regime_sn },
-        { t: 'radio', name: 'Tomador.LocalDomicilio', value: '2' }, // Exterior
-        { t: 'radio', name: 'Tomador.NIFInformado', value: '0' }, // Não
-        { t: 'chosen', sel: '#Tomador_MotivoNaoInformacaoNIF', value: cfg.page1.tomador_motivo_nif },
-        { t: 'text', sel: '#Tomador_Nome', value: cfg.tomador.nome },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_Logradouro', value: e.logradouro },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_Numero', value: e.numero },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_Bairro', value: e.bairro },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_Cidade', value: e.cidade },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_CodigoEnderecamentoPostal', value: e.cep },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_EstadoProvinciaRegiao', value: e.estado },
-        { t: 'chosen', sel: '#Tomador_EnderecoExterior_CodigoPais', value: e.pais_codigo },
+        { t: 'text', sel: '#DataCompetencia', value: state.competencia, label: 'Data de competência' },
+        { t: 'chosen', sel: '#SimplesNacional_RegimeApuracaoTributosSN', value: cfg.page1.regime_sn, label: 'Regime do Simples Nacional' },
+        { t: 'radio', name: 'Tomador.LocalDomicilio', value: '2', label: 'Domicílio do tomador (Exterior)' },
+        { t: 'radio', name: 'Tomador.NIFInformado', value: '0', label: 'NIF informado (Não)' },
+        { t: 'chosen', sel: '#Tomador_MotivoNaoInformacaoNIF', value: cfg.page1.tomador_motivo_nif, label: 'Motivo de não informar o NIF' },
+        { t: 'text', sel: '#Tomador_Nome', value: cfg.tomador.nome, label: 'Nome do tomador' },
+        { t: 'text', sel: '#Tomador_EnderecoExterior_Logradouro', value: e.logradouro, label: 'Logradouro (tomador)' },
+        { t: 'text', sel: '#Tomador_EnderecoExterior_Numero', value: e.numero, label: 'Número (tomador)' },
+        { t: 'text', sel: '#Tomador_EnderecoExterior_Bairro', value: e.bairro, label: 'Bairro (tomador)' },
+        { t: 'text', sel: '#Tomador_EnderecoExterior_Cidade', value: e.cidade, label: 'Cidade (tomador)' },
+        { t: 'text', sel: '#Tomador_EnderecoExterior_CodigoEnderecamentoPostal', value: e.cep, label: 'Endereço postal (tomador)' },
+        { t: 'text', sel: '#Tomador_EnderecoExterior_EstadoProvinciaRegiao', value: e.estado, label: 'Estado/região (tomador)' },
+        { t: 'chosen', sel: '#Tomador_EnderecoExterior_CodigoPais', value: e.pais_codigo, label: 'País (tomador)' },
       ];
       if (e.complemento) {
-        ops.push({ t: 'text', sel: '#Tomador_EnderecoExterior_Complemento', value: e.complemento });
+        ops.push({ t: 'text', sel: '#Tomador_EnderecoExterior_Complemento', value: e.complemento, label: 'Complemento (tomador)' });
       }
       return ops;
     }
@@ -36,35 +36,35 @@
       const s = cfg.servico;
       const ce = s.comercio_exterior;
       return [
-        { t: 'chosen', sel: '#LocalPrestacao_CodigoPaisPrestacao', value: 'BR' },
+        { t: 'chosen', sel: '#LocalPrestacao_CodigoPaisPrestacao', value: 'BR', label: 'País da prestação' },
         // município → enables CTN → populates Complementar: let each cascade settle.
-        { t: 'select2', sel: '#LocalPrestacao_CodigoMunicipioPrestacao', value: s.municipio.value, text: s.municipio.text, waitAfter: 900 },
-        { t: 'select2', sel: '#ServicoPrestado_CodigoTributacaoNacional', value: s.ctn.value, text: s.ctn.text, waitAfter: 900 },
-        { t: 'chosen', sel: '#ServicoPrestado_CodigoComplementarMunicipal', value: s.complementar.value, text: s.complementar.text },
-        { t: 'radio', name: 'ServicoPrestado.HaExportacaoImunidadeNaoIncidencia', value: '1', waitAfter: 400 },
-        { t: 'chosen', sel: '#ServicoPrestado_MotivoNaoTributacao', value: s.motivo_nao_tributacao },
-        { t: 'chosen', sel: '#ServicoPrestado_CodigoPaisResultado', value: s.pais_resultado },
-        { t: 'text', sel: '#ServicoPrestado_Descricao', value: s.descricao },
-        { t: 'chosen', sel: '#ServicoPrestado_CodigoNBS', value: s.nbs.value, text: s.nbs.text },
-        { t: 'chosen', sel: '#ComercioExterior_ModoPrestacao', value: ce.modo },
-        { t: 'chosen', sel: '#ComercioExterior_VinculoPrestacao', value: ce.vinculo },
-        { t: 'text', sel: '#ComercioExterior_TipoMoeda', value: ce.moeda },
-        { t: 'money', sel: '#ComercioExterior_ValorServicoMoedaEstrangeira', value: brl(state.usd) },
-        { t: 'chosen', sel: '#ComercioExterior_MecanismoApoioPrestador', value: ce.mec_prest },
-        { t: 'chosen', sel: '#ComercioExterior_MecanismoApoioTomador', value: ce.mec_tom },
-        { t: 'chosen', sel: '#ComercioExterior_MovimentacaoTempBens', value: ce.mov_bens },
-        { t: 'radio', name: 'ComercioExterior.CompartilharComMDIC', value: ce.mdic },
+        { t: 'select2', sel: '#LocalPrestacao_CodigoMunicipioPrestacao', value: s.municipio.value, text: s.municipio.text, waitAfter: 900, label: 'Município da prestação' },
+        { t: 'select2', sel: '#ServicoPrestado_CodigoTributacaoNacional', value: s.ctn.value, text: s.ctn.text, waitAfter: 900, label: 'Código de Tributação Nacional' },
+        { t: 'chosen', sel: '#ServicoPrestado_CodigoComplementarMunicipal', value: s.complementar.value, text: s.complementar.text, label: 'Código complementar municipal' },
+        { t: 'radio', name: 'ServicoPrestado.HaExportacaoImunidadeNaoIncidencia', value: '1', waitAfter: 400, label: 'Exportação/imunidade (Sim)' },
+        { t: 'chosen', sel: '#ServicoPrestado_MotivoNaoTributacao', value: s.motivo_nao_tributacao, label: 'Motivo da não tributação' },
+        { t: 'chosen', sel: '#ServicoPrestado_CodigoPaisResultado', value: s.pais_resultado, label: 'País do resultado' },
+        { t: 'text', sel: '#ServicoPrestado_Descricao', value: s.descricao, label: 'Descrição do serviço' },
+        { t: 'chosen', sel: '#ServicoPrestado_CodigoNBS', value: s.nbs.value, text: s.nbs.text, label: 'Item da NBS' },
+        { t: 'chosen', sel: '#ComercioExterior_ModoPrestacao', value: ce.modo, label: 'Modo de prestação' },
+        { t: 'chosen', sel: '#ComercioExterior_VinculoPrestacao', value: ce.vinculo, label: 'Vínculo entre as partes' },
+        { t: 'text', sel: '#ComercioExterior_TipoMoeda', value: ce.moeda, label: 'Moeda' },
+        { t: 'money', sel: '#ComercioExterior_ValorServicoMoedaEstrangeira', value: brl(state.usd), label: 'Valor em moeda estrangeira' },
+        { t: 'chosen', sel: '#ComercioExterior_MecanismoApoioPrestador', value: ce.mec_prest, label: 'Mecanismo de apoio (prestador)' },
+        { t: 'chosen', sel: '#ComercioExterior_MecanismoApoioTomador', value: ce.mec_tom, label: 'Mecanismo de apoio (tomador)' },
+        { t: 'chosen', sel: '#ComercioExterior_MovimentacaoTempBens', value: ce.mov_bens, label: 'Movimentação temporária de bens' },
+        { t: 'radio', name: 'ComercioExterior.CompartilharComMDIC', value: ce.mdic, label: 'Compartilhar com MDIC' },
       ];
     }
 
     if (pageId === 'valores') {
       const t = cfg.tributacao;
       return [
-        { t: 'money', sel: '#Valores_ValorServico', value: brl(state.valorBRL) },
-        { t: 'chosen', sel: '#TributacaoFederal_PISCofins_SituacaoTributaria', value: t.pis_situacao },
-        { t: 'chosen', sel: '#TributacaoFederal_PISCofins_TipoRetencao', value: t.pis_retencao },
-        { t: 'radio', name: 'ValorTributos.TipoValorTributos', value: t.valor_tributos_tipo },
-        { t: 'money', sel: '#ValorTributos_AliquotaSN', value: t.aliquota_sn },
+        { t: 'money', sel: '#Valores_ValorServico', value: brl(state.valorBRL), label: 'Valor do serviço (R$)' },
+        { t: 'chosen', sel: '#TributacaoFederal_PISCofins_SituacaoTributaria', value: t.pis_situacao, label: 'Situação tributária PIS/COFINS' },
+        { t: 'chosen', sel: '#TributacaoFederal_PISCofins_TipoRetencao', value: t.pis_retencao, label: 'Retenção PIS/COFINS' },
+        { t: 'radio', name: 'ValorTributos.TipoValorTributos', value: t.valor_tributos_tipo, label: 'Tipo do valor dos tributos' },
+        { t: 'money', sel: '#ValorTributos_AliquotaSN', value: t.aliquota_sn, label: 'Alíquota do Simples Nacional' },
       ];
     }
 
