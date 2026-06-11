@@ -105,13 +105,23 @@ function parseCompetencia(br) {
   return date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d ? date : null;
 }
 
+// Parses a pt-BR (or plain) decimal: '1.234,56' / '1234,56' / '5.1687' / '7.000' → number.
+// With a comma, dots are thousands separators; without one, dots in a 3-digit-group
+// pattern are thousands ('7.000' → 7000), otherwise the dot is the decimal point.
 function num(v) {
-  return Number(String(v).replace(',', '.')) || 0;
+  let s = String(v == null ? '' : v).trim().replace(/\s+/g, '');
+  if (!s) return 0;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 function fmtRate(n) {
   return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 }
+const fmtUsd = (n) =>
+  Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function recomputeValor() {
   const brl = num($('usd').value) * num($('cambio').value);
@@ -172,7 +182,7 @@ async function refreshRate() {
   try {
     const r = await window.fetchPtaxCompra(comp);
     if (gen !== rateGen) return; // a newer date/fetch superseded this result
-    $('cambio').value = r.rate;
+    $('cambio').value = fmtRate(r.rate); // pt-BR display ('5,1687'); num() parses it back
     recomputeValor();
     saveState();
     info.className = 'ptax ok';
@@ -246,10 +256,7 @@ function setProfileInfo(profile, source, withValor = false) {
   // On the dashboard show the reference value (USD). On the form it's omitted — the editable
   // Valor (US$) field is right there and the per-run amount can differ from the reference.
   const usd = profile.valor && profile.valor.usd;
-  const valorStr =
-    withValor && usd
-      ? ` · Valor: US$ ${Number(usd).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : '';
+  const valorStr = withValor && usd ? ` · Valor: US$ ${fmtUsd(usd)}` : '';
   el.innerHTML =
     `<div>Dados: <strong>${escapeHtml(profile.label || 'Perfil')}</strong> — <span class="src">${escapeHtml(srcText)}</span></div>` +
     `<div class="k">Tomador: ${escapeHtml(tomador)} · ${escapeHtml(mun)} · Alíquota SN: ${escapeHtml(aliq)}%${valorStr}</div>` +
@@ -349,7 +356,7 @@ async function refreshView() {
       // adopt this profile's reference value instead of carrying a stale amount.
       adoptProfileUsd(loggedCnpj, profile, source);
     } else if (!num($('usd').value) && profile.valor && profile.valor.usd) {
-      $('usd').value = profile.valor.usd;
+      $('usd').value = fmtUsd(profile.valor.usd);
       saveState();
     }
     recomputeValor();
@@ -421,7 +428,7 @@ function adoptProfileUsd(cnpj, profile, source) {
   runCnpj = cnpj || null;
   runSource = source || null;
   const usd = profile && profile.valor && profile.valor.usd;
-  $('usd').value = usd || '';
+  $('usd').value = usd ? fmtUsd(usd) : '';
   recomputeValor();
   saveState();
 }
