@@ -39,6 +39,13 @@
       .profinfo .k { color: #777; }
       .profinfo .revertbtn { width: auto; margin: 6px 0 0; padding: 4px 10px; font-size: 11px; background: #fff; color: #8a6d00; border: 1px solid #e0c97a; border-radius: 4px; font-weight: 600; }
       .profinfo .revertbtn:hover { background: #fff3d4; }
+      #profilesBox { margin-top: 14px; }
+      #profilesBox .boxtitle { font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px; }
+      .profrow { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 0; border-bottom: 1px solid #eee; font-size: 12px; }
+      .profrow .cnpj { color: #466; font-size: 11px; }
+      .profrow .logged { color: #1b6b3a; font-size: 11px; font-weight: 600; }
+      .delprof { width: auto; margin: 0; padding: 2px 8px; background: #fff; color: #b00020; border: 1px solid #e3b3bb; border-radius: 4px; font-size: 11px; font-weight: 600; flex: 0 0 auto; }
+      .delprof:hover { background: #fbeef0; }
     </style>
   </head>
   <body>
@@ -80,6 +87,11 @@
     <div id="idle" style="display: none">
       <p>Você está logado. Inicie a <strong>Emissão completa</strong> para preencher com os dados acima.</p>
       <p class="hint">Para usar ou trocar o cliente de referência, abra uma nota já emitida deste cliente (no portal) e escolha <strong>Usar nesta emissão</strong> ou <strong>Salvar como padrão</strong>.</p>
+      <div id="profilesBox" style="display: none">
+        <div class="boxtitle">Clientes salvos neste navegador</div>
+        <div id="profilesList"></div>
+        <p class="hint">Excluir remove os dados salvos do cliente deste navegador (clique duas vezes para confirmar). O perfil pode ser recriado a partir de uma nota emitida.</p>
+      </div>
     </div>
 
     <div id="review" style="display: none">

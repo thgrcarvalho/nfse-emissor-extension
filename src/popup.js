@@ -51,21 +51,48 @@ async function loadProfiles() {
     sessionProfiles = {};
   }
 }
+// All map writers re-read storage and merge one key (read-merge-write): with the panel
+// open in two windows, each holds its own cache, and writing a whole stale map would
+// silently drop the other window's saves.
 async function saveProfileObj(cnpj, profile) {
-  storedProfiles[cnpj] = profile;
-  await ext.storage.local.set({ profiles: storedProfiles });
+  let current = storedProfiles;
+  try {
+    current = (await ext.storage.local.get('profiles')).profiles || {};
+  } catch {}
+  current[cnpj] = profile;
+  storedProfiles = current;
+  await ext.storage.local.set({ profiles: current });
+}
+async function deleteProfileObj(cnpj) {
+  let current = storedProfiles;
+  try {
+    current = (await ext.storage.local.get('profiles')).profiles || {};
+  } catch {}
+  delete current[cnpj];
+  storedProfiles = current;
+  await ext.storage.local.set({ profiles: current });
 }
 async function setSessionProfile(cnpj, profile) {
-  sessionProfiles[cnpj] = profile;
+  let current = sessionProfiles;
   try {
-    await ext.storage.session.set({ sessionProfiles });
+    current = (await ext.storage.session.get('sessionProfiles')).sessionProfiles || {};
+  } catch {}
+  current[cnpj] = profile;
+  sessionProfiles = current;
+  try {
+    await ext.storage.session.set({ sessionProfiles: current });
   } catch {}
 }
 async function clearSessionProfile(cnpj) {
-  if (!(cnpj in sessionProfiles)) return;
-  delete sessionProfiles[cnpj];
+  let current = sessionProfiles;
   try {
-    await ext.storage.session.set({ sessionProfiles });
+    current = (await ext.storage.session.get('sessionProfiles')).sessionProfiles || {};
+  } catch {}
+  sessionProfiles = current;
+  if (!(cnpj in current)) return;
+  delete current[cnpj];
+  try {
+    await ext.storage.session.set({ sessionProfiles: current });
   } catch {}
 }
 
@@ -402,8 +429,59 @@ async function refreshView() {
   // Dashboard / other logged-in page: show which reference (profile) would be used.
   const active = activeProfileAndSource(loggedCnpj);
   setProfileInfo(active.profile, active.source, true);
+  renderProfileList(loggedCnpj);
   showView('idle');
 }
+
+// The saved-clients manager (dashboard only): every profile in storage.local, with a
+// two-step delete so an accountant can drop ex-clients' data (retention/LGPD).
+function renderProfileList(loggedCnpj) {
+  const box = $('profilesBox');
+  const keys = Object.keys(storedProfiles).sort((a, b) =>
+    String(storedProfiles[a].label || '').localeCompare(String(storedProfiles[b].label || ''))
+  );
+  if (!keys.length) {
+    box.style.display = 'none';
+    return;
+  }
+  $('profilesList').innerHTML = keys
+    .map((k) => {
+      const p = storedProfiles[k];
+      const logged = k === loggedCnpj ? ' <span class="logged">· logado</span>' : '';
+      return (
+        `<div class="profrow"><span>${escapeHtml(p.label || 'Cliente')} ` +
+        `<span class="cnpj">${escapeHtml(p.cnpj || k)}</span>${logged}</span>` +
+        `<button type="button" class="delprof" data-cnpj="${escapeHtml(k)}" title="Excluir os dados salvos deste cliente">🗑</button></div>`
+      );
+    })
+    .join('');
+  box.style.display = '';
+}
+
+let delArmTimer = null;
+$('profilesList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delprof');
+  if (!btn) return;
+  if (btn.dataset.armed !== '1') {
+    // First click arms; the second (within 4s) deletes. No confirm() — it is
+    // unreliable inside side panels.
+    for (const b of document.querySelectorAll('.delprof')) {
+      b.dataset.armed = '';
+      b.textContent = '🗑';
+    }
+    btn.dataset.armed = '1';
+    btn.textContent = 'excluir?';
+    clearTimeout(delArmTimer);
+    delArmTimer = setTimeout(() => {
+      btn.dataset.armed = '';
+      btn.textContent = '🗑';
+    }, 4000);
+    return;
+  }
+  clearTimeout(delArmTimer);
+  await deleteProfileObj(btn.dataset.cnpj);
+  refreshView(); // re-renders the list and the reference banner
+});
 
 // ---- load from a previous nota ----------------------------------------------------
 async function renderNotaView(tabId) {
@@ -680,6 +758,19 @@ ext.tabs.onUpdated.addListener((_id, changeInfo) => {
 ext.tabs.onRemoved.addListener((id) => prevPageByTab.delete(id));
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) ready.then(refreshView);
+});
+// Another panel (other window) changed the profile maps — resync and re-render.
+ext.storage.onChanged.addListener((changes, area) => {
+  let touched = false;
+  if (area === 'local' && changes.profiles) {
+    storedProfiles = changes.profiles.newValue || {};
+    touched = true;
+  }
+  if (area === 'session' && changes.sessionProfiles) {
+    sessionProfiles = changes.sessionProfiles.newValue || {};
+    touched = true;
+  }
+  if (touched) ready.then(refreshView);
 });
 
 async function init() {
