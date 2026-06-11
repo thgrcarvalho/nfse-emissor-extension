@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "NFS-e Nacional — Preenchimento (export EUA)",
+  "version": "0.1.0",
+  "description": "Preenche o rascunho da NFS-e no Emissor Nacional para exportação de serviço (ME/EPP, Brasil→EUA). Você revisa e emite.",
+  "permissions": ["storage", "activeTab", "sidePanel"],
+  "host_permissions": ["*://*.nfse.gov.br/*", "https://olinda.bcb.gov.br/*"],
+  "action": {
+    "default_title": "Preencher NFS-e",
+    "default_icon": { "128": "icons/icon128.png" }
+  },
+  "side_panel": { "default_path": "src/popup.html" },
+  "sidebar_action": {
+    "default_title": "Preencher NFS-e",
+    "default_panel": "src/popup.html",
+    "default_icon": { "128": "icons/icon128.png" }
+  },
+  "background": { "service_worker": "src/sw.js", "scripts": ["src/sw.js"] },
+  "browser_specific_settings": {
+    "gecko": { "id": "nfse-emissor@trc.dev", "strict_min_version": "128.0" }
+  },
+  "icons": { "128": "icons/icon128.png" },
+  "content_scripts": [
+    {
+      "matches": ["*://*.nfse.gov.br/EmissorNacional/*"],
+      "js": ["src/content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.nfse.gov.br/EmissorNacional/*"],
+      "js": ["src/fill-plan.js", "src/field-ops.js", "src/page-agent.js"],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/config.default.json"],
+      "matches": ["*://*.nfse.gov.br/*"]
+    }
+  ]
+}

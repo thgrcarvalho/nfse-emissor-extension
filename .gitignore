@@ -1,0 +1,6 @@
+node_modules/
+*.zip
+.DS_Store
+
+# Real client data — keep only the sanitized config.example.json in git
+src/config.default.json
