@@ -394,7 +394,9 @@ async function renderNotaView(tabId) {
   sum.textContent = 'Lendo a nota…';
   let res;
   try {
-    res = await ext.tabs.sendMessage(tabId, { action: 'parseNota' });
+    // The content script can't fetch the bundled template itself (it is not
+    // web-accessible) — send it along.
+    res = await ext.tabs.sendMessage(tabId, { action: 'parseNota', template: bundledConfig });
   } catch {
     res = null;
   }
@@ -596,7 +598,12 @@ $('fill').addEventListener('click', async () => {
       return;
     }
     const override = sessionProfiles[liveCnpj] || null;
-    const res = await ext.tabs.sendMessage(tab.id, { action: 'fillPage', state, profileOverride: override });
+    const res = await ext.tabs.sendMessage(tab.id, {
+      action: 'fillPage',
+      state,
+      profileOverride: override,
+      bundled: bundledConfig, // content.js can't fetch it (not web-accessible)
+    });
     if (!res) throw new Error('sem resposta da página (abra o formulário no portal)');
     if (!res.ok) {
       status.className = 'bad';

@@ -42,11 +42,8 @@ function readIdentity() {
 }
 
 const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
-
-async function loadBundled() {
-  const url = ext.runtime.getURL('src/config.default.json');
-  return (await fetch(url)).json();
-}
+// The bundled config template is NOT fetched here: the panel sends it along with each
+// parseNota/fillPage message, so the file never needs to be web-accessible to the page.
 
 // ---- previous-nota parsing --------------------------------------------------------
 // The Visualizar page renders every field as a .form-group with a label + a
@@ -123,18 +120,15 @@ const chaveFromUrl = () => (location.pathname.match(/\/(\d{50})(?:\/|$)/) || [])
 // than build a profile that could be keyed or filled wrong). Returns
 // { profile, emitente, chave, missing } — `missing` lists required fields the parse
 // couldn't read, so the panel warns before the profile is used or saved.
-async function buildProfileFromNota() {
+async function buildProfileFromNota(template) {
   const chave = chaveFromUrl();
   const map = notaLabelMap();
   const first = (k) => (map[k] && map[k][0]) || '';
   const enderecos = map['Endereço do Estabelecimento/Domicílio'] || [];
   const extStr = enderecos.find((s) => /País\s/i.test(s)) || enderecos[enderecos.length - 1] || '';
 
-  let template;
-  try {
-    template = await loadBundled();
-  } catch {
-    throw new Error('não consegui carregar o modelo da extensão (config.default.json) — recarregue a página.');
+  if (!template) {
+    throw new Error('modelo de configuração indisponível — crie src/config.default.json a partir do config.example.json.');
   }
   // Scenario-constant lookup ("page1.regime_sn" → template value, '' when absent).
   const t = (path) =>
@@ -212,19 +206,18 @@ async function buildProfileFromNota() {
 }
 
 // ---- fill -------------------------------------------------------------------------
-async function resolveProfile() {
+async function resolveProfile(bundled) {
   const cnpj = onlyDigits(readIdentity()?.cnpj);
   if (!cnpj) return null; // unknown client → no profile, ever (no wildcard fallback)
   try {
     const { profiles } = await ext.storage.local.get('profiles');
     if (profiles && profiles[cnpj]) return profiles[cnpj];
   } catch {}
-  const bundled = await loadBundled().catch(() => null);
   if (bundled && onlyDigits(bundled.cnpj) === cnpj) return bundled;
   return null;
 }
 
-function fillCurrentPage(state, override) {
+function fillCurrentPage(state, override, bundled) {
   return new Promise(async (resolve) => {
     const pageId = detectPage();
     if (pageId !== 'pessoas' && pageId !== 'servico' && pageId !== 'valores') {
@@ -243,7 +236,7 @@ function fillCurrentPage(state, override) {
     if (override && override.cnpj && onlyDigits(override.cnpj) === loggedCnpj) cfg = override;
     if (!cfg) {
       try {
-        cfg = await resolveProfile();
+        cfg = await resolveProfile(bundled);
       } catch (e) {
         return resolve({ ok: false, pageId, msg: 'Falha ao carregar perfil: ' + e.message });
       }
@@ -253,9 +246,16 @@ function fillCurrentPage(state, override) {
       return resolve({ ok: false, pageId, msg: `Nenhum perfil cadastrado para o CNPJ logado${id ? ` (${id.cnpj})` : ''}.` });
     }
     const reqId = Math.random().toString(36).slice(2);
+    // If the MAIN-world engine never answers (failed injection, page in a bad state),
+    // fail with a friendly message instead of leaving the panel stuck "Preenchendo…".
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMsg);
+      resolve({ ok: false, pageId, msg: 'O preenchimento não respondeu — recarregue a página e tente de novo.' });
+    }, 30000);
     const onMsg = (ev) => {
       const d = ev.data;
       if (!d || d.__nfse_res !== true || d.id !== reqId) return;
+      clearTimeout(timer);
       window.removeEventListener('message', onMsg);
       resolve({ ok: d.ok, pageId, results: d.results, err: d.err });
     };
@@ -270,7 +270,7 @@ ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return false;
   }
   if (msg.action === 'fillPage') {
-    fillCurrentPage(msg.state, msg.profileOverride).then(sendResponse);
+    fillCurrentPage(msg.state, msg.profileOverride, msg.bundled).then(sendResponse);
     return true; // keep the message channel open for the async reply
   }
   if (msg.action === 'parseNota') {
@@ -278,7 +278,7 @@ ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ ok: false, msg: 'Abra uma nota emitida (Visualizar) para carregar.' });
       return false;
     }
-    buildProfileFromNota()
+    buildProfileFromNota(msg.template)
       .then((r) => sendResponse({ ok: true, ...r }))
       .catch((e) => sendResponse({ ok: false, msg: String((e && e.message) || e) }));
     return true;

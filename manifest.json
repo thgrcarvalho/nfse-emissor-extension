@@ -32,11 +32,5 @@
       "world": "MAIN",
       "run_at": "document_idle"
     }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["src/config.default.json"],
-      "matches": ["*://*.nfse.gov.br/*"]
-    }
   ]
 }
