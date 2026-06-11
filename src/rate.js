@@ -25,7 +25,12 @@
   async function getPtaxCompra(dateBR) {
     const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(dateBR || '').trim());
     if (!m) throw new Error('data de competência inválida (use dd/mm/aaaa)');
-    const start = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    const [dd, mm, yy] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const start = new Date(yy, mm - 1, dd);
+    // Reject rolled-over dates (31/04 → 01/05): never quote a different day than asked.
+    if (start.getDate() !== dd || start.getMonth() !== mm - 1 || start.getFullYear() !== yy) {
+      throw new Error('data de competência inexistente');
+    }
     for (let back = 0; back <= 7; back++) {
       const day = new Date(start);
       day.setDate(day.getDate() - back);
@@ -33,8 +38,11 @@
       if (!list.length) continue;
       const fechamento = list.find((b) => /fechamento/i.test(b.tipoBoletim));
       const chosen = fechamento ?? list[list.length - 1];
+      const rate = Number(chosen.cotacaoCompra);
+      // Sanity-check the payload: only a finite positive number may price the nota.
+      if (!Number.isFinite(rate) || rate <= 0) throw new Error('cotação PTAX inválida na resposta do BCB');
       return {
-        rate: chosen.cotacaoCompra,
+        rate,
         tipoBoletim: chosen.tipoBoletim,
         cotacaoDateBR: fmtBR(day),
         exact: back === 0 && Boolean(fechamento),

@@ -95,6 +95,15 @@ function maskDate(v) {
   const d = String(v).replace(/\D/g, '').slice(0, 8);
   return [d.slice(0, 2), d.slice(2, 4), d.slice(4, 8)].filter(Boolean).join('/');
 }
+// dd/mm/aaaa → Date, or null. Round-trips the parts so rolled-over dates (31/04,
+// 99/99) are rejected instead of silently becoming another date.
+function parseCompetencia(br) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(br || '').trim());
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(y, mo - 1, d);
+  return date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d ? date : null;
+}
 
 function num(v) {
   return Number(String(v).replace(',', '.')) || 0;
@@ -136,10 +145,23 @@ async function loadState() {
 }
 
 // ---- PTAX (câmbio) by competência date --------------------------------------------
+let rateGen = 0; // discards out-of-date PTAX responses (in-flight fetch vs a newer date)
+
+// The câmbio belongs to the competência it was fetched (or typed) for — when the date
+// changes, drop it and any in-flight fetch, so a stale rate can never price the nota.
+function invalidateRate() {
+  rateGen++;
+  $('cambio').value = '';
+  $('ptaxInfo').className = 'ptax';
+  $('ptaxInfo').textContent = '';
+  $('refreshRate').disabled = false;
+}
+
 async function refreshRate() {
+  const gen = ++rateGen;
   const info = $('ptaxInfo');
   const comp = getCompetenciaBR();
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(comp)) {
+  if (!parseCompetencia(comp)) {
     info.className = 'ptax';
     info.textContent = '';
     return;
@@ -149,6 +171,7 @@ async function refreshRate() {
   info.textContent = 'Buscando câmbio (PTAX) no Banco Central…';
   try {
     const r = await window.fetchPtaxCompra(comp);
+    if (gen !== rateGen) return; // a newer date/fetch superseded this result
     $('cambio').value = r.rate;
     recomputeValor();
     saveState();
@@ -157,10 +180,11 @@ async function refreshRate() {
       ? `PTAX de fechamento ${r.cotacaoDateBR}: ${fmtRate(r.rate)}`
       : `Sem fechamento em ${comp}. Usando ${r.cotacaoDateBR}: ${fmtRate(r.rate)}`;
   } catch (e) {
+    if (gen !== rateGen) return;
     info.className = 'ptax bad';
     info.textContent = 'Não consegui buscar o câmbio. Informe manualmente. (' + e.message + ')';
   } finally {
-    $('refreshRate').disabled = false;
+    if (gen === rateGen) $('refreshRate').disabled = false;
   }
 }
 
@@ -443,6 +467,7 @@ $('competencia').addEventListener('input', () => {
   const masked = maskDate($('competencia').value);
   if (masked !== $('competencia').value) $('competencia').value = masked;
   $('competenciaPicker').value = brToISO(masked);
+  invalidateRate(); // the old rate belonged to the old date
   recomputeValor();
   saveState();
   clearTimeout(rateTimer);
@@ -452,6 +477,7 @@ $('competenciaPicker').addEventListener('change', () => {
   const iso = $('competenciaPicker').value;
   if (!iso) return;
   setCompetencia(isoToBR(iso));
+  invalidateRate(); // the old rate belonged to the old date
   recomputeValor();
   saveState();
   clearTimeout(rateTimer);
@@ -497,6 +523,11 @@ $('fill').addEventListener('click', async () => {
   const valorBRL = recomputeValor();
   saveState();
   const status = $('status');
+  if (!parseCompetencia(getCompetenciaBR())) {
+    status.className = 'bad';
+    status.textContent = 'Data de competência inválida — use dd/mm/aaaa.';
+    return;
+  }
   if (!num($('usd').value)) {
     status.className = 'bad';
     status.textContent = 'Informe o valor (US$) do serviço.';
