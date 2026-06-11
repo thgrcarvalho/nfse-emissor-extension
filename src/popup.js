@@ -53,15 +53,17 @@ async function loadProfiles() {
 }
 // All map writers re-read storage and merge one key (read-merge-write): with the panel
 // open in two windows, each holds its own cache, and writing a whole stale map would
-// silently drop the other window's saves.
+// silently drop the other window's saves. A ~ms get→set race window remains between two
+// panels writing simultaneously — accepted for human-paced use. The caches are updated
+// only after the write succeeds, so a failed save never *looks* saved.
 async function saveProfileObj(cnpj, profile) {
   let current = storedProfiles;
   try {
     current = (await ext.storage.local.get('profiles')).profiles || {};
   } catch {}
   current[cnpj] = profile;
-  storedProfiles = current;
   await ext.storage.local.set({ profiles: current });
+  storedProfiles = current;
 }
 async function deleteProfileObj(cnpj) {
   let current = storedProfiles;
@@ -69,9 +71,10 @@ async function deleteProfileObj(cnpj) {
     current = (await ext.storage.local.get('profiles')).profiles || {};
   } catch {}
   delete current[cnpj];
-  storedProfiles = current;
   await ext.storage.local.set({ profiles: current });
+  storedProfiles = current;
 }
+// Session overrides keep working panel-locally even if storage.session is unavailable.
 async function setSessionProfile(cnpj, profile) {
   let current = sessionProfiles;
   try {
@@ -337,6 +340,7 @@ async function refreshView() {
   if (!(await hasHostPermission())) {
     if (gen !== viewGen) return;
     $('profileInfo').style.display = 'none';
+    $('permsStatus').textContent = '';
     setIdentity(null);
     showView('needPerms');
     return;
@@ -479,7 +483,13 @@ $('profilesList').addEventListener('click', async (e) => {
     return;
   }
   clearTimeout(delArmTimer);
-  await deleteProfileObj(btn.dataset.cnpj);
+  const cnpj = btn.dataset.cnpj;
+  await deleteProfileObj(cnpj);
+  if (cnpj === runCnpj) {
+    // The per-run USD belonged to the deleted profile — follow whatever remains.
+    const after = activeProfileAndSource(cnpj);
+    adoptProfileUsd(cnpj, after.profile, after.source);
+  }
   refreshView(); // re-renders the list and the reference banner
 });
 
@@ -647,9 +657,9 @@ $('grantPerms').addEventListener('click', async () => {
   }
   $('permsStatus').textContent = '';
   try {
-    // Content scripts only inject on (re)load — refresh the portal tab if it's open.
-    const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
-    if (tab && isPortalUrl(tab.url)) await ext.tabs.reload(tab.id);
+    // Content scripts only inject on (re)load — refresh every open portal tab.
+    const tabs = await ext.tabs.query({ url: 'https://*.nfse.gov.br/EmissorNacional/*' });
+    await Promise.all(tabs.map((t) => ext.tabs.reload(t.id).catch(() => {})));
   } catch {}
   refreshView();
 });
@@ -760,18 +770,32 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) ready.then(refreshView);
 });
 // Another panel (other window) changed the profile maps — resync and re-render.
+// onChanged also fires for THIS panel's own writes; those already match the local cache
+// (writers update it first), so the deep-equal check skips them — otherwise the echo
+// re-render would wipe just-set confirmation messages in the nota view.
 ext.storage.onChanged.addListener((changes, area) => {
   let touched = false;
   if (area === 'local' && changes.profiles) {
-    storedProfiles = changes.profiles.newValue || {};
-    touched = true;
+    const nv = changes.profiles.newValue || {};
+    if (JSON.stringify(nv) !== JSON.stringify(storedProfiles)) {
+      storedProfiles = nv;
+      touched = true;
+    }
   }
   if (area === 'session' && changes.sessionProfiles) {
-    sessionProfiles = changes.sessionProfiles.newValue || {};
-    touched = true;
+    const nv = changes.sessionProfiles.newValue || {};
+    if (JSON.stringify(nv) !== JSON.stringify(sessionProfiles)) {
+      sessionProfiles = nv;
+      touched = true;
+    }
   }
   if (touched) ready.then(refreshView);
 });
+// View state can also go stale when permissions change outside the panel (about:addons).
+if (ext.permissions && ext.permissions.onAdded) {
+  ext.permissions.onAdded.addListener(() => ready.then(refreshView));
+  ext.permissions.onRemoved.addListener(() => ready.then(refreshView));
+}
 
 async function init() {
   setCompetencia(todayBR());

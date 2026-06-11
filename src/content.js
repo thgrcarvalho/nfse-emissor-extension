@@ -218,7 +218,17 @@ async function resolveProfile(bundled) {
 }
 
 function fillCurrentPage(state, override, bundled) {
-  return new Promise(async (resolve) => {
+  // The async body is wrapped so ANY unexpected throw resolves with an error response —
+  // the panel must never be left awaiting a reply that will not come.
+  return new Promise((resolve) => {
+    fillCurrentPageBody(state, override, bundled, resolve).catch((e) =>
+      resolve({ ok: false, pageId: detectPage(), msg: 'Falha inesperada: ' + String((e && e.message) || e) })
+    );
+  });
+}
+
+async function fillCurrentPageBody(state, override, bundled, resolve) {
+  {
     const pageId = detectPage();
     if (pageId !== 'pessoas' && pageId !== 'servico' && pageId !== 'valores') {
       return resolve({ ok: false, pageId, msg: 'Abra uma página do formulário (Pessoas / Serviço / Valores).' });
@@ -261,7 +271,7 @@ function fillCurrentPage(state, override, bundled) {
     };
     window.addEventListener('message', onMsg);
     window.postMessage({ __nfse_req: true, id: reqId, pageId, cfg, state }, '*');
-  });
+  }
 }
 
 ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
