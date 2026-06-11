@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 13px/1.4 system-ui, sans-serif; box-sizing: border-box; width: 100%; min-width: 240px; margin: 0; padding: 12px; color: #222; }
+      h1 { font-size: 14px; margin: 0 0 2px; color: #1b6b3a; }
+      label { display: block; margin: 8px 0 2px; font-weight: 600; }
+      input { width: 100%; box-sizing: border-box; padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
+      .row { display: flex; gap: 8px; }
+      .row > div { flex: 1; }
+      .valor { margin: 10px 0; padding: 6px 8px; background: #eef7f0; border-radius: 4px; }
+      button { width: 100%; margin-top: 10px; padding: 8px; border: 0; border-radius: 4px; background: #1b6b3a; color: #fff; font-weight: 600; cursor: pointer; }
+      button:disabled { background: #9bbfa8; }
+      button.ghost { background: #eee; color: #444; }
+      .linkbtn { width: auto; margin: 0; padding: 0 6px; background: none; color: #1b6b3a; font-size: 13px; vertical-align: middle; }
+      .linkbtn:disabled { background: none; color: #9bbfa8; }
+      #status { margin-top: 10px; font-size: 12px; white-space: pre-wrap; }
+      .ptax { font-size: 11px; margin-top: 4px; color: #666; white-space: pre-wrap; min-height: 14px; }
+      .ok { color: #1b6b3a; }
+      .bad { color: #b00020; }
+      .hint { color: #888; font-size: 11px; margin-top: 8px; }
+      #wrongSite p { margin: 8px 0; }
+      .daterow { display: flex; gap: 6px; align-items: stretch; }
+      .daterow > #competencia { flex: 1; }
+      .pickwrap { position: relative; flex: 0 0 auto; display: inline-flex; }
+      .pickbtn { width: 34px; margin: 0; padding: 0; border: 1px solid #ccc; border-radius: 4px; background: #fff; color: inherit; font-size: 15px; line-height: 1; cursor: pointer; }
+      .pickbtn:hover { background: #f2f7f4; }
+      .pickwrap input[type='date'] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+      .ident { font-size: 12px; font-weight: 600; color: #1b6b3a; margin: 0 0 10px; padding: 5px 8px; background: #eef7f0; border-radius: 4px; }
+      .ident .cnpj { font-weight: 400; color: #466; }
+      .summary { font-size: 12px; background: #f5f7f6; border-radius: 4px; padding: 8px; margin: 8px 0; }
+      .summary div { padding: 1px 0; }
+      .summary .k { color: #888; }
+      .profinfo { font-size: 11px; background: #eef7f0; border-radius: 4px; padding: 6px 8px; margin: 0 0 10px; }
+      .profinfo.temp { background: #fff8e6; border: 1px solid #f0e2b8; }
+      .profinfo.none { background: #f0f0f0; color: #888; }
+      .profinfo .src { font-weight: 600; }
+      .profinfo .k { color: #777; }
+      .profinfo .revertbtn { width: auto; margin: 6px 0 0; padding: 4px 10px; font-size: 11px; background: #fff; color: #8a6d00; border: 1px solid #e0c97a; border-radius: 4px; font-weight: 600; }
+      .profinfo .revertbtn:hover { background: #fff3d4; }
+    </style>
+  </head>
+  <body>
+    <h1>Preencher NFS-e</h1>
+    <div class="ident" id="identity" style="display: none"></div>
+    <div class="profinfo" id="profileInfo" style="display: none"></div>
+
+    <div id="wrongSite" style="display: none">
+      <p>Esta extensão funciona apenas no <strong>Emissor Nacional</strong> (www.nfse.gov.br/EmissorNacional).</p>
+      <p class="hint">Abra o portal e faça login para usar.</p>
+      <button id="openPortal" type="button">Abrir o Emissor Nacional</button>
+    </div>
+
+    <div id="needLogin" style="display: none">
+      <p>Você precisa estar <strong>logado</strong> no Emissor Nacional para usar a extensão.</p>
+      <p class="hint">Faça login com CPF/CNPJ e senha — o painel libera o preenchimento automaticamente.</p>
+      <button id="goLogin" type="button">Ir para o login</button>
+    </div>
+
+    <div id="noContact" style="display: none">
+      <p>Não consegui <strong>ler a página</strong> do portal.</p>
+      <p class="hint">Recarregue a aba e tente novamente — depois de instalar ou atualizar a extensão é preciso recarregar a página do portal.</p>
+      <button type="button" class="reloadTab">Recarregar a página</button>
+    </div>
+
+    <div id="noIdentity" style="display: none">
+      <p>Não consegui identificar o <strong>CNPJ logado</strong>.</p>
+      <p class="hint">Por segurança, o preenchimento fica bloqueado sem identificar o cliente. Recarregue a página; se o problema continuar, o portal pode ter mudado e a extensão precisa de atualização.</p>
+      <button type="button" class="reloadTab">Recarregar a página</button>
+    </div>
+
+    <div id="idle" style="display: none">
+      <p>Você está logado. Inicie a <strong>Emissão completa</strong> para preencher com os dados acima.</p>
+      <p class="hint">Para usar ou trocar o cliente de referência, abra uma nota já emitida deste cliente (no portal) e escolha <strong>Usar nesta emissão</strong> ou <strong>Salvar como padrão</strong>.</p>
+    </div>
+
+    <div id="review" style="display: none">
+      <p>Revise os dados da nota e clique em <strong>Emitir NFS-e</strong> no final da página.</p>
+      <p class="hint">A extensão não emite por você — a emissão é sempre manual.</p>
+    </div>
+
+    <div id="noProfile" style="display: none">
+      <p>Ainda não há um <strong>perfil</strong> para o CNPJ logado.</p>
+      <p class="hint">Abra uma nota já emitida deste cliente (no portal) e escolha <strong>Salvar como padrão</strong> para criar o perfil — assim o preenchimento usa sempre os dados corretos.</p>
+    </div>
+
+    <div id="nota" style="display: none">
+      <p><strong>Nota carregada</strong> <span id="notaNum"></span></p>
+      <div class="summary" id="notaSummary"></div>
+      <div id="notaMissing" class="hint bad"></div>
+      <button id="useNota" type="button">Usar nesta emissão</button>
+      <button id="saveNota" type="button" class="ghost">Salvar como padrão deste cliente</button>
+      <div id="notaStatus" class="hint"></div>
+    </div>
+
+    <div id="form" style="display: none">
+      <label for="competencia">Data de competência</label>
+      <div class="daterow">
+        <input id="competencia" inputmode="numeric" placeholder="dd/mm/aaaa" autocomplete="off" maxlength="10" />
+        <span class="pickwrap">
+          <button id="pickDate" type="button" class="pickbtn" title="Escolher no calendário">📅</button>
+          <input id="competenciaPicker" type="date" tabindex="-1" aria-hidden="true" />
+        </span>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="usd">Valor (US$)</label>
+          <input id="usd" type="number" step="0.01" />
+        </div>
+        <div>
+          <label for="cambio">Câmbio (PTAX) <button id="refreshRate" type="button" class="linkbtn" title="Buscar PTAX da data de competência">↻</button></label>
+          <input id="cambio" type="number" step="0.0001" placeholder="ex: 5,1687" />
+        </div>
+      </div>
+      <div class="ptax" id="ptaxInfo"></div>
+
+      <div class="valor">Valor da nota: <strong id="valorBRL">R$ —</strong></div>
+
+      <button id="fill">Preencher página atual</button>
+      <div id="status"></div>
+      <div class="hint">O câmbio é buscado no Banco Central pela data de competência (PTAX de fechamento). Em cada etapa clique em <strong>Preencher</strong>, confira e avance no portal. No fim, revise e clique <strong>Emitir</strong> você mesmo.</div>
+    </div>
+
+    <script src="rate.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
