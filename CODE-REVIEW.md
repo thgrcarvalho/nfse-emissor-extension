@@ -170,11 +170,18 @@ fetching `runtime.getURL`.
    fill, `refreshView` generation guard + init/listener ordering (part of the Phase 4
    race items), askContentState retry ×2.
 
-**Phase 2 — input validation & PTAX (same week):**
-5. M1/M2: shared competência validator (shape + real date) and `usd > 0` gate on fill.
-6. M3/M4 (+ low): PTAX generation token, clear/stale-tag câmbio on date change or failure,
-   validate the rate is finite/positive.
-7. M5: usd/cambio → `type="text" inputmode="decimal"` with explicit pt-BR parsing.
+**Phase 2 — input validation & PTAX — ✅ DONE 2026-06-11:**
+5. ✅ M1/M2: `parseCompetencia` (shape + Date round-trip, rejects 31/04) gates both
+   `refreshRate` and the fill click; `usd > 0` gate landed with Phase 1. rate.js also
+   rejects rolled-over dates. Live-tested against the BCB API (business day, weekend
+   walk-back, invalid dates throw).
+6. ✅ M3/M4: `rateGen` token discards superseded PTAX responses; `invalidateRate()`
+   clears the câmbio on any competência change (typed or picker) so a stale rate can
+   never price the nota; BCB payload sanity (finite, > 0). 22 unit assertions on
+   `num`/`parseCompetencia` extracted from the real popup.js.
+7. ✅ M5: usd/câmbio are `inputmode="decimal"` text inputs with explicit pt-BR parsing
+   (comma decimal, dot-thousands heuristic); PTAX autofill and profile USD render
+   pt-BR (`fmtRate`/`fmtUsd`), parse back losslessly.
 
 **Phase 3 — before distributing to the accountant / publishing the repo:**
 8. H5: `config.example.json` committed, real config gitignored; drop the WAR entry by passing
