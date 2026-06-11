@@ -183,13 +183,26 @@ fetching `runtime.getURL`.
    (comma decimal, dot-thousands heuristic); PTAX autofill and profile USD render
    pt-BR (`fmtRate`/`fmtUsd`), parse back losslessly.
 
-**Phase 3 — before distributing to the accountant / publishing the repo:**
-8. H5: `config.example.json` committed, real config gitignored; drop the WAR entry by passing
-   the template through the `parseNota` message.
-9. M10: https-only patterns; M9: Firefox permission-grant view; M8: read-merge-write storage
-   + `onChanged`.
-10. Profile management UI (list + delete saved clients — LGPD retention).
-11. Fill round-trip timeout with a friendly error; human-readable labels on fill ops.
+**Phase 3 — before distributing to the accountant / publishing the repo — ✅ DONE 2026-06-11:**
+8. ✅ H5: `config.example.json` committed + real config gitignored (done at publication);
+   `web_accessible_resources` REMOVED — the template now travels inside the
+   `parseNota`/`fillPage` messages (content.js no longer fetches anything).
+9. ✅ M10: https-only host_permissions/content_scripts + protocol check in `isPortalUrl`.
+   ✅ M9: `needPerms` view + `permissions.request` grant button (Firefox MV3 treats
+   manifest host_permissions as requestable — web-verified); reloads all portal tabs
+   after the grant; `permissions.onAdded/onRemoved` resync the view.
+   ✅ M8: read-merge-write on all four map writers (cache updated only after a
+   successful write), `storage.onChanged` resync with a deep-equal guard against
+   self-echo (which would wipe just-set confirmation messages). Residual ms-window
+   between two panels' get→set accepted for human-paced use.
+10. ✅ Saved-clients manager in the dashboard view: sorted list, "logado" marker,
+    two-step delete (no `confirm()` — unreliable in panels); deleting the logged
+    client's profile re-adopts the surviving profile's USD.
+11. ✅ 30s fill round-trip timeout + async body wrapped so any throw resolves an error
+    (panel can never hang on "Preenchendo…"); every fill op carries a pt-BR `label`
+    shown in failure reports. v0.2.0.
+    Deferred (low): per-origin diagnostic when only the BCB grant is revoked (CORS makes
+    it moot today); armed delete button disarms on background tab events.
 
 **Phase 4 — opportunistic hardening & hygiene:**
 12. M6 (scoped label map / local da prestação), M7 (cascade polling), M12 (executeScript

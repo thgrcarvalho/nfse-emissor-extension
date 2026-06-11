@@ -27,6 +27,8 @@ Como roda dentro do **seu navegador, já logado**, não esbarra nas defesas do p
 - **Câmbio automático**: busca a PTAX de fechamento do Banco Central para a data de
   competência escolhida (com aviso quando usa o fechamento de um dia anterior —
   fim de semana/feriado).
+- **Gerenciador de clientes salvos** no painel (tela inicial): veja todos os perfis e
+  exclua os dados de ex-clientes quando não precisar mais deles.
 - Preenche as três páginas do assistente (Pessoas → Serviço → Valores) sob demanda;
   **para na tela de revisão — nunca emite sozinha.**
 
