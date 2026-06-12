@@ -23,7 +23,10 @@ let runSource = null; // which profile source set it: 'session' | 'saved' | 'bun
 const prevPageByTab = new Map(); // tabId → { pageId, cnpj }, to detect leaving the review screen
 const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
 const escapeHtml = (s) =>
-  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  String(s).replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
 
 // The active profile + where it came from: use-once > saved > bundled, each only on an
 // exact CNPJ match (no CNPJ → no profile). Mirrors content.js's resolveProfile.
@@ -140,7 +143,10 @@ function parseCompetencia(br) {
 // pattern are thousands ('7.000' → 7000), otherwise the dot is the decimal point.
 // Tolerates a pasted currency prefix ('R$ 1.234,56').
 function num(v) {
-  let s = String(v == null ? '' : v).trim().replace(/\s+/g, '').replace(/^(r\$|us\$|\$)/i, '');
+  let s = String(v == null ? '' : v)
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/^(r\$|us\$|\$)/i, '');
   if (!s) return 0;
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
   else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
@@ -150,7 +156,9 @@ function num(v) {
 // Exchange rates never use thousands grouping — without a comma, a dot is always the
 // decimal point ('5.168' is 5.168, NOT 5168). Use this for the câmbio field.
 function numRate(v) {
-  let s = String(v == null ? '' : v).trim().replace(/\s+/g, '');
+  let s = String(v == null ? '' : v)
+    .trim()
+    .replace(/\s+/g, '');
   if (!s) return 0;
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
   const n = Number(s);
@@ -266,7 +274,18 @@ async function hasHostPermission() {
 }
 
 function showView(name) {
-  for (const v of ['needPerms', 'wrongSite', 'needLogin', 'noContact', 'noIdentity', 'idle', 'review', 'noProfile', 'nota', 'form']) {
+  for (const v of [
+    'needPerms',
+    'wrongSite',
+    'needLogin',
+    'noContact',
+    'noIdentity',
+    'idle',
+    'review',
+    'noProfile',
+    'nota',
+    'form',
+  ]) {
     $(v).style.display = v === name ? '' : 'none';
   }
 }
@@ -296,11 +315,12 @@ function setProfileInfo(profile, source, withValor = false) {
     el.style.display = '';
     return;
   }
-  const srcText = {
-    session: '⚠ carregado de uma nota — só nesta emissão',
-    saved: 'perfil salvo',
-    bundled: 'configuração padrão',
-  }[source] || '';
+  const srcText =
+    {
+      session: '⚠ carregado de uma nota — só nesta emissão',
+      saved: 'perfil salvo',
+      bundled: 'configuração padrão',
+    }[source] || '';
   const mun = (profile.servico && profile.servico.municipio && profile.servico.municipio.text) || '';
   const aliq = (profile.tributacao && profile.tributacao.aliquota_sn) || '';
   const tomador = (profile.tomador && profile.tomador.nome) || '';
@@ -391,7 +411,13 @@ async function refreshView() {
   const stillInWizard =
     pageId === 'pessoas' || pageId === 'servico' || pageId === 'valores' || pageId === 'review';
   const prev = prevPageByTab.get(tab.id);
-  if (prev && prev.pageId === 'review' && prev.cnpj === loggedCnpj && !stillInWizard && sessionProfiles[loggedCnpj]) {
+  if (
+    prev &&
+    prev.pageId === 'review' &&
+    prev.cnpj === loggedCnpj &&
+    !stillInWizard &&
+    sessionProfiles[loggedCnpj]
+  ) {
     await clearSessionProfile(loggedCnpj);
     const after = activeProfileAndSource(loggedCnpj);
     adoptProfileUsd(loggedCnpj, after.profile, after.source); // USD back to the padrão's reference
@@ -442,7 +468,7 @@ async function refreshView() {
 function renderProfileList(loggedCnpj) {
   const box = $('profilesBox');
   const keys = Object.keys(storedProfiles).sort((a, b) =>
-    String(storedProfiles[a].label || '').localeCompare(String(storedProfiles[b].label || ''))
+    String(storedProfiles[a].label || '').localeCompare(String(storedProfiles[b].label || '')),
   );
   if (!keys.length) {
     box.style.display = 'none';
@@ -524,7 +550,8 @@ async function renderNotaView(tabId) {
   $('notaNum').textContent = Number.isFinite(notaNumero) ? `(nº ${notaNumero})` : '';
   const cnpj = (res.emitente && res.emitente.cnpj) || p.cnpj || '';
   const descr = (p.servico && p.servico.descricao) || '';
-  const row = (k, v) => `<div><span class="k">${escapeHtml(k)}:</span> ${escapeHtml(v == null ? '' : String(v))}</div>`;
+  const row = (k, v) =>
+    `<div><span class="k">${escapeHtml(k)}:</span> ${escapeHtml(v == null ? '' : String(v))}</div>`;
   sum.innerHTML =
     row('Cliente', `${p.label || ''}${cnpj ? ' — ' + cnpj : ''}`) +
     row('Município', p.servico && p.servico.municipio ? p.servico.municipio.text : '') +
@@ -571,7 +598,8 @@ $('useNota').addEventListener('click', async () => {
   await setSessionProfile(cnpj, parsedNota.profile);
   adoptProfileUsd(cnpj, parsedNota.profile, 'session');
   $('notaStatus').className = 'hint ok';
-  $('notaStatus').textContent = 'Pronto. Inicie a Emissão completa deste cliente e preencha — sem salvar como padrão.';
+  $('notaStatus').textContent =
+    'Pronto. Inicie a Emissão completa deste cliente e preencha — sem salvar como padrão.';
 });
 
 $('saveNota').addEventListener('click', async () => {
@@ -781,7 +809,10 @@ $('fill').addEventListener('click', async () => {
       status.textContent = 'O preenchimento não respondeu — recarregue a página e tente de novo.';
       return;
     }
-    const res = Object.assign({ pageId: resolved.pageId }, outcome || { ok: false, err: 'sem resultado da injeção' });
+    const res = Object.assign(
+      { pageId: resolved.pageId },
+      outcome || { ok: false, err: 'sem resultado da injeção' },
+    );
     if (!res.ok) {
       status.className = 'bad';
       status.textContent = res.msg || res.err || 'Falha ao preencher.';

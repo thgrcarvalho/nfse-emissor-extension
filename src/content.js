@@ -108,7 +108,10 @@ function parseExterior(s) {
   out.complemento = hp.slice(2).join(', ');
   if (iBairro >= 0) {
     const end = iCep >= 0 ? iCep : iPais >= 0 ? iPais : s.length;
-    out.bairro = s.slice(iBairro + 'Bairro '.length, end).replace(/,\s*$/, '').trim();
+    out.bairro = s
+      .slice(iBairro + 'Bairro '.length, end)
+      .replace(/,\s*$/, '')
+      .trim();
   }
   if (iCep >= 0) {
     const tail = s
@@ -151,7 +154,9 @@ async function buildProfileFromNota(template) {
   const extStr = first(SEC.tomador, 'Endereço do Estabelecimento/Domicílio');
 
   if (!template) {
-    throw new Error('modelo de configuração indisponível — crie src/config.default.json a partir do config.example.json.');
+    throw new Error(
+      'modelo de configuração indisponível — crie src/config.default.json a partir do config.example.json.',
+    );
   }
   // Scenario-constant lookup ("page1.regime_sn" → template value, '' when absent).
   const t = (path) =>
@@ -181,7 +186,10 @@ async function buildProfileFromNota(template) {
       // text = local da prestação (Serviço Prestado panel); value = the chave's
       // município gerador code — same municipality whenever the service is rendered
       // from the company seat (this tool's scenario).
-      municipio: { value: chave.slice(CHAVE.municipio[0], CHAVE.municipio[1]), text: first(SEC.servico, 'Município') },
+      municipio: {
+        value: chave.slice(CHAVE.municipio[0], CHAVE.municipio[1]),
+        text: first(SEC.servico, 'Município'),
+      },
       ctn,
       complementar: splitCodeText(first(SEC.servico, 'Código de Tributação Municipal')),
       motivo_nao_tributacao: leadCode(first(SEC.tribMunicipal, 'Tributação do ISSQN')),
@@ -201,7 +209,10 @@ async function buildProfileFromNota(template) {
     tributacao: {
       pis_situacao: leadCode(first(SEC.tribFederal, 'Situação tributária do PIS/COFINS')),
       pis_retencao: leadCode(first(SEC.tribFederal, 'Descrição Contribuições Sociais - Retidas')),
-      aliquota_sn: first(SEC.totalTributos, 'Valor percentual aproximado do total dos tributos da alíquota do Simples Nacional'),
+      aliquota_sn: first(
+        SEC.totalTributos,
+        'Valor percentual aproximado do total dos tributos da alíquota do Simples Nacional',
+      ),
       valor_tributos_tipo: t('tributacao.valor_tributos_tipo'),
     },
     valor: { usd: usdToNum(first(SEC.comercioExterior, 'Valor do serviço em moeda estrangeira')) },
@@ -273,7 +284,11 @@ async function resolveFill(override, bundled) {
   }
   if (!cfg) {
     const id = readIdentity();
-    return { ok: false, pageId, msg: `Nenhum perfil cadastrado para o CNPJ logado${id ? ` (${id.cnpj})` : ''}.` };
+    return {
+      ok: false,
+      pageId,
+      msg: `Nenhum perfil cadastrado para o CNPJ logado${id ? ` (${id.cnpj})` : ''}.`,
+    };
   }
   return { ok: true, pageId, cfg };
 }
