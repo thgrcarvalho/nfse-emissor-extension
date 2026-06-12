@@ -237,11 +237,58 @@ fetching `runtime.getURL`.
 17. ✅ CI (lint, format check, build, AMO lint, artifact upload) + README badge; real
     icon (SVG source + rendered 128/300 PNGs), placeholder generator removed.
 
+**Phase A — wizard-variant coverage — 2026-06-12:**
+18. ✅ Variant architecture: profile discriminants (`tomador.local`,
+    `tomador.nif.informado`, `tributacao.valor_tributos_tipo`) with a
+    `normalizeProfile` migration in content.js `resolveFill` (old profiles gain
+    `local:'exterior'` + `nif:{informado:'0'}` — no storage rewrite, no user action);
+    shape guard restructured into common + per-discriminant variants, refusing
+    unknown discriminant values loudly. New supported variants, each mapped from
+    Produção Restrita probe dumps and validated there end-to-end (0 failed ops AND
+    server acceptance of every Avançar): tomador não informado; tomador Brasil
+    (CPF/CNPJ with cadastro-lookup settle — the portal auto-fills nome/endereço;
+    `#Tomador_InformarEndereco` is never touched); NIF informado (exterior only —
+    the portal clears the NIF group when the tomador moves to Brasil,
+    probe-verified); telefone/e-mail; tributos tipos 1/2/3. Parser infers the
+    tomador variant and the tributos tipo from the Visualizar sections (required[]
+    follows the variant; an unrecognizable "Total dos tributos" parses as tipo ''
+    and is refused at fill time). Engine: masked fields (telefone, CPF/CNPJ do
+    tomador) compare digits-only — the portal's input mask reformats what is set
+    (caught on staging). Validation: `validate-variants.mjs` (7 variants + 3
+    guard-refusal DOM tests) on Produção Restrita; 35/35 production-shape regression
+    with guard active; load-from-nota regression on a real emitted nota — all green.
+    Portal rule learned: the tomador CPF/CNPJ may not equal the emitente's on the
+    same NFS-e.
+19. ✅ Hardening from the Phase A adversarial review (multi-agent, every finding
+    independently re-verified): ISS-devido profiles are now refused at GUARD level
+    on the Serviço and Valores pages (new `motivo_nao_tributacao` dimension —
+    only imunidade/exportação/não-incidência pass; previously the chosen op failed
+    only after the exportação radio had flipped: a partial fill);
+    `#ComercioExterior_TipoMoeda` added to the Serviço signature (present up-front
+    in every probed/staged render); guard variant lookup is
+    Object.prototype-safe (a corrupted discriminant like "constructor" refuses
+    cleanly instead of throwing); engine gained `settleMin` (unconditional settle
+    for cascades with no DOM-observable signal — the Brasil cadastro lookup's 600 ms
+    was being skipped by the waitAfter early-exit poll); parser fail-loud
+    restorations: a Tomador-ish section under an unrecognized heading parses as
+    variant '' (refused + warned) instead of silently 'não informado'; an
+    unrecognized NIF-ish row warns; tipo 1-vs-2 inference requires explicit
+    valor/percentual wording (ambiguous → '', refused); a nota with no "Total dos
+    tributos" section warns before re-onboarding as tipo 3; ISS-devido notas warn at
+    parse time (motivo outside 2/3/4); `normalizeProfile` defaults a NIF that
+    carries a valor to informado='1'. Re-validated after the changes: full 7-variant
+    staging suite + 35/35 regression + load-from-nota — all green.
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout
 injection could overlap a re-fill on a stuck page; chave-gerador município code when
 prestação ≠ company seat; the shape guard asserts the *presence* of supported-shape
 controls and profile fields, not the *absence* of extra ones (a richer-but-compatible
-page variant still fills — portal validation and the human review cover it); only
-`valor_tributos_tipo` '4' (alíquota do Simples) is a supported profile shape.
+page variant still fills — portal validation and the human review cover it); the
+Visualizar labels of a tomador-Brasil nota and of tipo-1/2 "Total dos tributos"
+sections were not probed against a real emitted nota of those shapes — the parser
+matches them loosely (CPF/CNPJ-ish labels, ente-name regexes) and anything unread
+lands in the missing-fields warning or is refused at fill time; ISS devido, retenções,
+intermediário, obra e evento remain out of scope (page 3 of the ISS-devido variant is
+server-rendered and unmapped — see the wizard map for Phase B).

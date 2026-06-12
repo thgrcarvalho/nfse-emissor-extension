@@ -4,9 +4,8 @@
 
 Extensão de navegador (Manifest V3) que **preenche o rascunho da NFS-e** no
 [Emissor Nacional](https://www.nfse.gov.br/EmissorNacional) para **exportação de
-serviços** — ME/EPP no Simples Nacional, tomador no exterior, ISS não incidente
-(LC 116/2003, art. 2º, I). A extensão preenche o assistente; **você revisa e clica
-em Emitir.**
+serviços** — ME/EPP no Simples Nacional, ISS não incidente (LC 116/2003, art. 2º, I).
+A extensão preenche o assistente; **você revisa e clica em Emitir.**
 
 Feita para quem emite a mesma nota todo mês — o dev/consultor que exporta serviço, ou
 o contador que emite para vários clientes desse perfil — e não aguenta mais digitar as
@@ -36,20 +35,33 @@ Como roda dentro do **seu navegador, já logado**, não esbarra nas defesas do p
 
 ## Escopo suportado
 
-A extensão preenche **um** formato de nota, de ponta a ponta — e **se recusa a
-preencher** quando a página ou o perfil não apresentam os campos desse formato
-(guarda de formato: nada é preenchido parcialmente). Variantes que apenas
-_acrescentem_ campos aos do formato suportado não são detectadas pela guarda —
-a conferência antes de emitir continua indispensável.
+A extensão preenche a nota de **exportação de serviço** (ISS não incidente,
+LC 116/2003, art. 2º, I) de emitente ME/EPP no **Simples Nacional**, nas variantes
+do assistente abaixo — todas validadas de ponta a ponta na **Produção Restrita**
+(ambiente de homologação do portal), inclusive a aceitação de cada página pelo
+servidor:
 
-- Exportação de serviço — ISS não incidente (LC 116/2003, art. 2º, I);
-- Emitente ME/EPP no **Simples Nacional** (tributos informados por alíquota do SN);
-- Tomador **no exterior**, sem NIF informado;
+- Tomador **no exterior** (com endereço), **no Brasil** (CPF/CNPJ — o portal busca o
+  cadastro e completa nome e endereço sozinho) ou **não informado**;
+- **NIF** informado ou não informado (tomador no exterior);
+- Telefone e e-mail do tomador (opcionais);
+- Total dos tributos por **alíquota do Simples Nacional**, por **valores por ente**,
+  por **percentuais por ente** ou **não informado**;
 - Valor do serviço em **US$**, convertido pela PTAX do Banco Central.
 
-Notas fora desse formato (tomador no Brasil, ISS devido, retenções, NIF informado,
-intermediário de serviço etc.) **ainda não são suportadas** — o painel avisa e nada
-é preenchido.
+Os campos de variante do perfil são criados automaticamente ao carregar de uma nota
+emitida; perfis salvos por versões anteriores continuam valendo (migração
+automática, sem ação do usuário).
+
+Quando a página ou o perfil não casam com uma variante reconhecida, a extensão
+**se recusa a preencher a página inteira** (guarda de formato: nada é preenchido
+parcialmente). Variantes que apenas _acrescentem_ campos aos do formato suportado
+não são detectadas pela guarda — a conferência antes de emitir continua
+indispensável.
+
+Continuam **fora do escopo** (o painel avisa e nada é preenchido): ISS devido
+(serviço não exportado), retenções de ISSQN, intermediário de serviço, obra e
+evento.
 
 **Versão do portal validada: Emissor Nacional 1.6.0.0.** O portal exibe a versão em
 todas as páginas; quando ela for diferente da validada — ou não puder ser lida — o
@@ -118,9 +130,10 @@ Política completa em [PRIVACY.md](PRIVACY.md). Em resumo:
   cascade order reverse-engineered from the portal's wizard).
 - `src/field-ops.js` — applies them via the page's own jQuery (Chosen/select2 aware),
   polling AJAX cascades and re-applying values a late rebuild wiped.
-- `src/shape-guard.js` — pre-flight: refuses the whole page when its controls (or the
-  profile) don't match the supported export-of-service shape, so an unknown wizard
-  variant is never partially filled.
+- `src/shape-guard.js` — pre-flight: resolves which supported variant the profile
+  declares (tomador locale, NIF, tributos type) and refuses the whole page when the
+  page's controls or the profile don't match it — an unknown wizard variant is never
+  partially filled, and unknown discriminant values fail closed.
 - `src/rate.js` — BCB PTAX (fechamento, compra) lookup by competência date, with
   weekend/holiday walk-back.
 - `src/popup.*` — the side panel (identity, profiles, per-run inputs, fill trigger).
@@ -141,9 +154,11 @@ service invoice) draft on the national Emissor Nacional for service exporters
 onboarding by parsing a previously emitted invoice, automatic BCB PTAX exchange rate.
 It fills the 3-page wizard; the human always reviews and clicks Emitir. Credential-free:
 it operates on the already-logged-in tab, and all data stays in local browser storage.
-Scope is deliberately narrow (see _Escopo suportado_): one invoice shape, enforced by a
-fill-time guard; validated against Emissor Nacional 1.6.0.0, with an in-panel warning
-when the live portal version differs.
+Scope (see _Escopo suportado_): the export-of-service invoice in its validated wizard
+variants — tomador abroad/in Brazil/not informed, NIF, contact fields, four "total dos
+tributos" modes — enforced by a fill-time guard that refuses whole pages outside it;
+validated against Emissor Nacional 1.6.0.0 (each variant server-accepted on the
+portal's staging), with an in-panel warning when the live portal version differs.
 
 ## Aviso
 
