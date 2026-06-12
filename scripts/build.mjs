@@ -21,7 +21,9 @@ function stage(name, patch) {
   const dir = path.join(dist, name);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
-  fs.cpSync(path.join(root, 'icons'), path.join(dir, 'icons'), { recursive: true });
+  // Only the icon the manifest references — not the SVG source or the Edge store logo.
+  fs.mkdirSync(path.join(dir, 'icons'));
+  fs.copyFileSync(path.join(root, 'icons', 'icon128.png'), path.join(dir, 'icons', 'icon128.png'));
   for (const f of fs.readdirSync(path.join(root, 'src'))) {
     if (f === 'config.default.json' || f === 'config.example.json') continue;
     fs.copyFileSync(path.join(root, 'src', f), path.join(dir, 'src', f));
@@ -62,6 +64,19 @@ for (const name of ['chrome', 'firefox']) {
   const staged = fs.readFileSync(path.join(dist, name, 'src', 'config.default.json'));
   if (!staged.equals(example)) {
     throw new Error(`dist/${name}: bundled config differs from config.example.json — aborting`);
+  }
+}
+
+// Guard: every engine file popup.js injects must be in the package — popup.js is the
+// source of truth, so a rename there can't silently ship a package with a broken fill.
+const popupSrc = fs.readFileSync(path.join(root, 'src', 'popup.js'), 'utf8');
+const injected = [...popupSrc.matchAll(/'src\/([\w.-]+\.js)'/g)].map((m) => m[1]);
+if (!injected.length) throw new Error('no injected engine files found in popup.js — pattern drift?');
+for (const name of ['chrome', 'firefox']) {
+  for (const f of injected) {
+    if (!fs.existsSync(path.join(dist, name, 'src', f))) {
+      throw new Error(`dist/${name}: src/${f} is injected by popup.js but missing from the package`);
+    }
   }
 }
 
