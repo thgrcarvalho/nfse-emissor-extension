@@ -9,6 +9,13 @@ if (ext.sidePanel && ext.sidePanel.setPanelBehavior) {
   ext.runtime.onInstalled.addListener(enable);
   ext.runtime.onStartup.addListener(enable);
   enable();
+  // Belt and braces: if setPanelBehavior failed (policy, transient error), the icon
+  // would otherwise be a dead button — open the panel explicitly on click too.
+  if (ext.action && ext.action.onClicked && ext.sidePanel.open) {
+    ext.action.onClicked.addListener((tab) => {
+      ext.sidePanel.open({ tabId: tab.id }).catch(() => {});
+    });
+  }
 }
 
 // Firefox: toggle the sidebar when the toolbar icon is clicked (action.onClicked only

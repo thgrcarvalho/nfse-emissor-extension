@@ -71,15 +71,17 @@ A mesma pasta serve para os três navegadores.
 ## Arquitetura (en)
 
 - `src/content.js` — isolated world: detects the page + login identity, parses an
-  emitted nota into a client profile (fail-closed on unreadable CNPJ), relays fill
-  requests.
+  emitted nota into a client profile (section-scoped, fail-closed on unreadable CNPJ),
+  resolves which profile a fill may use.
 - `src/fill-plan.js` — builds the ordered field operations per page (field ids and
   cascade order reverse-engineered from the portal's wizard).
-- `src/field-ops.js` — applies them via the page's own jQuery (Chosen/select2 aware).
-- `src/page-agent.js` — MAIN-world bridge between content script and the engine.
+- `src/field-ops.js` — applies them via the page's own jQuery (Chosen/select2 aware),
+  polling AJAX cascades and re-applying values a late rebuild wiped.
 - `src/rate.js` — BCB PTAX (fechamento, compra) lookup by competência date, with
   weekend/holiday walk-back.
 - `src/popup.*` — the side panel (identity, profiles, per-run inputs, fill trigger).
+  The fill engine + profile are injected on demand into the page's MAIN world via
+  `scripting.executeScript` — no page-observable bridge, no engine parked on the page.
 - `src/sw.js` — opens the side panel / toggles the sidebar on the toolbar-icon click.
 
 Validated against the real portal by a private Playwright harness (kept outside this

@@ -455,7 +455,7 @@ function renderProfileList(loggedCnpj) {
       return (
         `<div class="profrow"><span>${escapeHtml(p.label || 'Cliente')} ` +
         `<span class="cnpj">${escapeHtml(p.cnpj || k)}</span>${logged}</span>` +
-        `<button type="button" class="delprof" data-cnpj="${escapeHtml(k)}" title="Excluir os dados salvos deste cliente">🗑</button></div>`
+        `<button type="button" class="delprof" data-cnpj="${escapeHtml(k)}" title="Excluir os dados salvos deste cliente" aria-label="Excluir ${escapeHtml(p.label || 'cliente')}">🗑</button></div>`
       );
     })
     .join('');
@@ -519,8 +519,9 @@ async function renderNotaView(tabId) {
   }
   parsedNota = res;
   const p = res.profile;
-  const num14 = res.chave ? parseInt(res.chave.slice(23, 36), 10) : NaN;
-  $('notaNum').textContent = Number.isFinite(num14) ? `(nº ${num14})` : '';
+  // Chave layout: digits [23,36) carry the nota number (keep in sync with content.js CHAVE).
+  const notaNumero = res.chave ? parseInt(res.chave.slice(23, 36), 10) : NaN;
+  $('notaNum').textContent = Number.isFinite(notaNumero) ? `(nº ${notaNumero})` : '';
   const cnpj = (res.emitente && res.emitente.cnpj) || p.cnpj || '';
   const descr = (p.servico && p.servico.descricao) || '';
   const row = (k, v) => `<div><span class="k">${escapeHtml(k)}:</span> ${escapeHtml(v == null ? '' : String(v))}</div>`;
@@ -664,11 +665,10 @@ $('grantPerms').addEventListener('click', async () => {
   refreshView();
 });
 $('pickDate').addEventListener('click', () => {
-  const p = $('competenciaPicker');
   try {
-    p.showPicker();
+    $('competenciaPicker').showPicker();
   } catch {
-    p.focus();
+    $('competencia').focus(); // never focus the aria-hidden picker input
   }
 });
 // "usar padrão": drop the use-once override for the logged client, revert to saved/default.
@@ -807,8 +807,9 @@ $('fill').addEventListener('click', async () => {
 // against unrestored run state (runCnpj/runSource) and clobber the persisted USD.
 const ready = init().catch(() => {});
 ext.tabs.onActivated.addListener(() => ready.then(refreshView));
-ext.tabs.onUpdated.addListener((_id, changeInfo) => {
-  if (changeInfo.status === 'complete' || changeInfo.url) ready.then(refreshView);
+ext.tabs.onUpdated.addListener((_id, changeInfo, tab) => {
+  // Only the active tab drives the panel — background tabs' loads are irrelevant churn.
+  if ((changeInfo.status === 'complete' || changeInfo.url) && tab && tab.active) ready.then(refreshView);
 });
 ext.tabs.onRemoved.addListener((id) => prevPageByTab.delete(id));
 document.addEventListener('visibilitychange', () => {
