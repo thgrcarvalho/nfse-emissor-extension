@@ -67,24 +67,62 @@
       r.disabled = false;
       r.click(); // real click fires the portal's reveal/cascade handlers
     }
-    return { name, ok: r.checked, got: r.checked };
+    return { name, ok: r.checked, got: r.checked, err: r.checked ? undefined : 'não ficou marcado' };
+  }
+
+  function applyOp(op) {
+    if (op.t === 'text' || op.t === 'money') return setText(op.sel, op.value);
+    if (op.t === 'chosen') return setChosen(op.sel, op.value, op.text);
+    if (op.t === 'select2') return setSelect2(op.sel, op.value, op.text);
+    if (op.t === 'radio') return setRadio(op.name, op.value);
+    return { ok: false, err: 'unknown op ' + op.t };
+  }
+
+  // Does the page still hold the value this op set? (A late AJAX rebuild can wipe it.)
+  function selfHolds(op) {
+    if (op.name) {
+      const r = document.querySelector(`input[name="${op.name}"][value="${op.value}"]`);
+      return !!(r && r.checked);
+    }
+    const el = op.sel && document.querySelector(op.sel);
+    return !!(el && el.value === String(op.value));
+  }
+
+  // Is the next op's target usable yet? (Cascades disable/replace the dependent control.)
+  function depReady(nextOp) {
+    if (!nextOp || !nextOp.sel) return true;
+    const el = document.querySelector(nextOp.sel);
+    return !!el && !el.disabled;
   }
 
   window.__nfseApply = async function (ops) {
     const results = [];
-    for (const op of ops) {
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
       let res;
       try {
-        if (op.t === 'text' || op.t === 'money') res = setText(op.sel, op.value);
-        else if (op.t === 'chosen') res = setChosen(op.sel, op.value, op.text);
-        else if (op.t === 'select2') res = setSelect2(op.sel, op.value, op.text);
-        else if (op.t === 'radio') res = setRadio(op.name, op.value);
-        else res = { ok: false, err: 'unknown op ' + op.t };
+        res = applyOp(op);
       } catch (e) {
         res = { ok: false, err: String((e && e.message) || e) };
       }
+      if (op.waitAfter) {
+        // op.waitAfter is the calibrated worst-case settle time for the AJAX cascade
+        // this op triggers. Poll instead of sleeping blind: exit early once the next
+        // control is usable and our value is still in place; if a late rebuild wiped
+        // the value, re-apply it once and honor the cascade it re-triggers.
+        const until = Date.now() + op.waitAfter;
+        while (Date.now() < until && !(depReady(ops[i + 1]) && selfHolds(op))) await sleep(100);
+        if (!selfHolds(op)) {
+          await sleep(400); // the rebuild may still be settling
+          try {
+            res = Object.assign(applyOp(op), { reapplied: true });
+          } catch (e) {
+            res = { ok: false, err: String((e && e.message) || e), reapplied: true };
+          }
+          await sleep(op.waitAfter);
+        }
+      }
       results.push(Object.assign({ label: op.label || op.sel || op.name }, res));
-      if (op.waitAfter) await sleep(op.waitAfter);
     }
     return results;
   };

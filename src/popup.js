@@ -682,6 +682,22 @@ $('profileInfo').addEventListener('click', async (e) => {
   refreshView();
 });
 
+// Runs inside the page's MAIN world via scripting.executeScript — must be self-contained
+// (no closure over panel code). The engine files are injected immediately before.
+function runEngine(pageId, cfg, state) {
+  try {
+    if (!window.__nfseFillPlan || !window.__nfseApply) {
+      return Promise.resolve({ ok: false, err: 'motor de preenchimento ausente — recarregue a página' });
+    }
+    return window
+      .__nfseApply(window.__nfseFillPlan(pageId, cfg, state))
+      .then((results) => ({ ok: true, results }))
+      .catch((e) => ({ ok: false, err: String((e && e.message) || e) }));
+  } catch (e) {
+    return Promise.resolve({ ok: false, err: String((e && e.message) || e) });
+  }
+}
+
 $('fill').addEventListener('click', async () => {
   const valorBRL = recomputeValor();
   saveState();
@@ -730,13 +746,42 @@ $('fill').addEventListener('click', async () => {
       return;
     }
     const override = sessionProfiles[liveCnpj] || null;
-    const res = await ext.tabs.sendMessage(tab.id, {
-      action: 'fillPage',
-      state,
+    // 1) content.js (isolated world) resolves WHICH profile may be filled — all the
+    //    guards live there, next to the page it inspects.
+    const resolved = await ext.tabs.sendMessage(tab.id, {
+      action: 'resolveFill',
       profileOverride: override,
       bundled: bundledConfig, // content.js can't fetch it (not web-accessible)
     });
-    if (!res) throw new Error('sem resposta da página (abra o formulário no portal)');
+    if (!resolved) throw new Error('sem resposta da página (abra o formulário no portal)');
+    if (!resolved.ok) {
+      status.className = 'bad';
+      status.textContent = resolved.msg || 'Falha ao preencher.';
+      return;
+    }
+    // 2) Inject the engine + profile straight into the MAIN world. The profile never
+    //    transits a page-observable channel; the engine exists only during the fill.
+    const exec = (async () => {
+      await ext.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: 'MAIN',
+        files: ['src/fill-plan.js', 'src/field-ops.js'],
+      });
+      const [r] = await ext.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: 'MAIN',
+        func: runEngine,
+        args: [resolved.pageId, resolved.cfg, state],
+      });
+      return r && r.result;
+    })();
+    const outcome = await Promise.race([exec, new Promise((r) => setTimeout(() => r('timeout'), 35000))]);
+    if (outcome === 'timeout') {
+      status.className = 'bad';
+      status.textContent = 'O preenchimento não respondeu — recarregue a página e tente de novo.';
+      return;
+    }
+    const res = Object.assign({ pageId: resolved.pageId }, outcome || { ok: false, err: 'sem resultado da injeção' });
     if (!res.ok) {
       status.className = 'bad';
       status.textContent = res.msg || res.err || 'Falha ao preencher.';

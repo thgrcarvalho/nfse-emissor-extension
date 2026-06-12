@@ -243,61 +243,39 @@ async function resolveProfile(bundled) {
   return null;
 }
 
-function fillCurrentPage(state, override, bundled) {
-  // The async body is wrapped so ANY unexpected throw resolves with an error response —
-  // the panel must never be left awaiting a reply that will not come.
-  return new Promise((resolve) => {
-    fillCurrentPageBody(state, override, bundled, resolve).catch((e) =>
-      resolve({ ok: false, pageId: detectPage(), msg: 'Falha inesperada: ' + String((e && e.message) || e) })
-    );
-  });
-}
-
-async function fillCurrentPageBody(state, override, bundled, resolve) {
-  {
-    const pageId = detectPage();
-    if (pageId !== 'pessoas' && pageId !== 'servico' && pageId !== 'valores') {
-      return resolve({ ok: false, pageId, msg: 'Abra uma página do formulário (Pessoas / Serviço / Valores).' });
-    }
-    const loggedCnpj = onlyDigits(readIdentity()?.cnpj);
-    if (!loggedCnpj) {
-      return resolve({
-        ok: false,
-        pageId,
-        msg: 'Não consegui identificar o CNPJ logado — preenchimento bloqueado por segurança. Recarregue a página.',
-      });
-    }
-    let cfg = null;
-    // "Use once" override only applies if it belongs to the logged-in client.
-    if (override && override.cnpj && onlyDigits(override.cnpj) === loggedCnpj) cfg = override;
-    if (!cfg) {
-      try {
-        cfg = await resolveProfile(bundled);
-      } catch (e) {
-        return resolve({ ok: false, pageId, msg: 'Falha ao carregar perfil: ' + e.message });
-      }
-    }
-    if (!cfg) {
-      const id = readIdentity();
-      return resolve({ ok: false, pageId, msg: `Nenhum perfil cadastrado para o CNPJ logado${id ? ` (${id.cnpj})` : ''}.` });
-    }
-    const reqId = Math.random().toString(36).slice(2);
-    // If the MAIN-world engine never answers (failed injection, page in a bad state),
-    // fail with a friendly message instead of leaving the panel stuck "Preenchendo…".
-    const timer = setTimeout(() => {
-      window.removeEventListener('message', onMsg);
-      resolve({ ok: false, pageId, msg: 'O preenchimento não respondeu — recarregue a página e tente de novo.' });
-    }, 30000);
-    const onMsg = (ev) => {
-      const d = ev.data;
-      if (!d || d.__nfse_res !== true || d.id !== reqId) return;
-      clearTimeout(timer);
-      window.removeEventListener('message', onMsg);
-      resolve({ ok: d.ok, pageId, results: d.results, err: d.err });
-    };
-    window.addEventListener('message', onMsg);
-    window.postMessage({ __nfse_req: true, id: reqId, pageId, cfg, state }, '*');
+// Resolves which profile a fill must use — page guard, identity guard, override CNPJ
+// check — and returns it to the panel. The panel then injects the engine and the profile
+// straight into the MAIN world via scripting.executeScript, so the profile never transits
+// a page-observable channel (the old window.postMessage bridge was forgeable/readable by
+// portal page scripts).
+async function resolveFill(override, bundled) {
+  const pageId = detectPage();
+  if (pageId !== 'pessoas' && pageId !== 'servico' && pageId !== 'valores') {
+    return { ok: false, pageId, msg: 'Abra uma página do formulário (Pessoas / Serviço / Valores).' };
   }
+  const loggedCnpj = onlyDigits(readIdentity()?.cnpj);
+  if (!loggedCnpj) {
+    return {
+      ok: false,
+      pageId,
+      msg: 'Não consegui identificar o CNPJ logado — preenchimento bloqueado por segurança. Recarregue a página.',
+    };
+  }
+  let cfg = null;
+  // "Use once" override only applies if it belongs to the logged-in client.
+  if (override && override.cnpj && onlyDigits(override.cnpj) === loggedCnpj) cfg = override;
+  if (!cfg) {
+    try {
+      cfg = await resolveProfile(bundled);
+    } catch (e) {
+      return { ok: false, pageId, msg: 'Falha ao carregar perfil: ' + e.message };
+    }
+  }
+  if (!cfg) {
+    const id = readIdentity();
+    return { ok: false, pageId, msg: `Nenhum perfil cadastrado para o CNPJ logado${id ? ` (${id.cnpj})` : ''}.` };
+  }
+  return { ok: true, pageId, cfg };
 }
 
 ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -305,8 +283,10 @@ ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ pageId: detectPage(), loggedIn: isLoggedIn(), identity: readIdentity() });
     return false;
   }
-  if (msg.action === 'fillPage') {
-    fillCurrentPage(msg.state, msg.profileOverride, msg.bundled).then(sendResponse);
+  if (msg.action === 'resolveFill') {
+    resolveFill(msg.profileOverride, msg.bundled)
+      .then(sendResponse)
+      .catch((e) => sendResponse({ ok: false, pageId: detectPage(), msg: String((e && e.message) || e) }));
     return true; // keep the message channel open for the async reply
   }
   if (msg.action === 'parseNota') {
