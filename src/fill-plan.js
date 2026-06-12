@@ -248,7 +248,8 @@
 
     if (pageId === 'valores') {
       const t = cfg.tributacao;
-      return [
+      const tipo = String(t.valor_tributos_tipo);
+      const ops = [
         {
           t: 'money',
           sel: '#Valores_ValorServico',
@@ -270,16 +271,46 @@
         {
           t: 'radio',
           name: 'ValorTributos.TipoValorTributos',
-          value: t.valor_tributos_tipo,
+          value: tipo,
+          waitAfter: 400,
           label: 'Tipo do valor dos tributos',
         },
-        {
+      ];
+      if (tipo === '1' || tipo === '2') {
+        // Total dos tributos por ente: tipo 1 informa valores (R$), tipo 2 percentuais.
+        const tr = t.tributos || {};
+        const base = tipo === '1' ? '#ValorTributos_ValorTotal' : '#ValorTributos_PercentualTotal';
+        const word = tipo === '1' ? 'Valor' : 'Percentual';
+        ops.push(
+          {
+            t: 'money',
+            sel: base + 'Federal',
+            value: tr.federal,
+            label: word + ' total dos tributos federais',
+          },
+          {
+            t: 'money',
+            sel: base + 'Estadual',
+            value: tr.estadual,
+            label: word + ' total dos tributos estaduais',
+          },
+          {
+            t: 'money',
+            sel: base + 'Municipal',
+            value: tr.municipal,
+            label: word + ' total dos tributos municipais',
+          },
+        );
+      } else if (tipo === '4') {
+        ops.push({
           t: 'money',
           sel: '#ValorTributos_AliquotaSN',
           value: t.aliquota_sn,
           label: 'Alíquota do Simples Nacional',
-        },
-      ];
+        });
+      }
+      // tipo '3' (não informar): o próprio radio é o ramo inteiro.
+      return ops;
     }
 
     return [];

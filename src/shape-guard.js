@@ -105,6 +105,41 @@
           label: 'tipo do valor dos tributos',
           path: ['tributacao', 'valor_tributos_tipo'],
           variants: {
+            1: {
+              cfg: [
+                ['tributacao', 'tributos', 'federal'],
+                ['tributacao', 'tributos', 'estadual'],
+                ['tributacao', 'tributos', 'municipal'],
+              ],
+              controls: [
+                [
+                  'input[name="ValorTributos.TipoValorTributos"][value="1"]',
+                  'opção de informar o valor dos tributos',
+                ],
+              ],
+            },
+            2: {
+              cfg: [
+                ['tributacao', 'tributos', 'federal'],
+                ['tributacao', 'tributos', 'estadual'],
+                ['tributacao', 'tributos', 'municipal'],
+              ],
+              controls: [
+                [
+                  'input[name="ValorTributos.TipoValorTributos"][value="2"]',
+                  'opção de informar o percentual dos tributos',
+                ],
+              ],
+            },
+            3: {
+              cfg: [],
+              controls: [
+                [
+                  'input[name="ValorTributos.TipoValorTributos"][value="3"]',
+                  'opção de não informar os tributos',
+                ],
+              ],
+            },
             4: {
               cfg: [['tributacao', 'aliquota_sn']],
               controls: [

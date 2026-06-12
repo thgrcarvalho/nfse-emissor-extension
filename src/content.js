@@ -224,6 +224,35 @@ async function buildProfileFromNota(template) {
     });
   }
 
+  // Tipo do total dos tributos, inferred from how the Visualizar section presents it:
+  // alíquota do SN → '4'; percentuais por ente → '2'; valores por ente → '1'; seção
+  // ausente → '3' (não informado). The per-ente labels were not probed — they are
+  // matched loosely by ente name, and an unrecognizable section parses as tipo ''
+  // (the fill guard refuses it; the missing-fields report names it).
+  const ttSec = map[SEC.totalTributos];
+  const ttKeys = ttSec ? Object.keys(ttSec) : [];
+  const ttFind = (re) => {
+    const k = ttKeys.find((key) => re.test(key));
+    return k ? ttSec[k][0] : '';
+  };
+  const aliquotaSn = first(
+    SEC.totalTributos,
+    'Valor percentual aproximado do total dos tributos da alíquota do Simples Nacional',
+  );
+  let tributosTipo = '3';
+  let tributos;
+  if (aliquotaSn) {
+    tributosTipo = '4';
+  } else if (ttSec) {
+    tributos = { federal: ttFind(/federa/i), estadual: ttFind(/estadua/i), municipal: ttFind(/municipa/i) };
+    if (tributos.federal || tributos.estadual || tributos.municipal) {
+      tributosTipo = ttKeys.some((k) => /percentual/i.test(k)) ? '2' : '1';
+    } else {
+      tributosTipo = '';
+      tributos = undefined;
+    }
+  }
+
   const razaoSocial = first(SEC.emitente, 'Razão Social');
   const profile = {
     label: razaoSocial || 'Cliente',
@@ -258,15 +287,15 @@ async function buildProfileFromNota(template) {
         mdic: t('servico.comercio_exterior.mdic'),
       },
     },
-    tributacao: {
-      pis_situacao: leadCode(first(SEC.tribFederal, 'Situação tributária do PIS/COFINS')),
-      pis_retencao: leadCode(first(SEC.tribFederal, 'Descrição Contribuições Sociais - Retidas')),
-      aliquota_sn: first(
-        SEC.totalTributos,
-        'Valor percentual aproximado do total dos tributos da alíquota do Simples Nacional',
-      ),
-      valor_tributos_tipo: t('tributacao.valor_tributos_tipo'),
-    },
+    tributacao: Object.assign(
+      {
+        pis_situacao: leadCode(first(SEC.tribFederal, 'Situação tributária do PIS/COFINS')),
+        pis_retencao: leadCode(first(SEC.tribFederal, 'Descrição Contribuições Sociais - Retidas')),
+        aliquota_sn: aliquotaSn,
+        valor_tributos_tipo: tributosTipo,
+      },
+      tributos ? { tributos } : null,
+    ),
     valor: { usd: usdToNum(first(SEC.comercioExterior, 'Valor do serviço em moeda estrangeira')) },
   };
 
@@ -295,7 +324,16 @@ async function buildProfileFromNota(template) {
     ['Moeda', profile.servico.comercio_exterior.moeda],
     ['Situação PIS/COFINS', profile.tributacao.pis_situacao],
     ['Retenção PIS/COFINS', profile.tributacao.pis_retencao],
-    ['Alíquota SN', profile.tributacao.aliquota_sn],
+    // Total dos tributos requirements follow the inferred tipo ('3' requires nothing).
+    ...(tributosTipo === '4' ? [['Alíquota SN', aliquotaSn]] : []),
+    ...(tributosTipo === '1' || tributosTipo === '2'
+      ? [
+          ['Tributos federais', tributos.federal],
+          ['Tributos estaduais', tributos.estadual],
+          ['Tributos municipais', tributos.municipal],
+        ]
+      : []),
+    ...(tributosTipo === '' ? [['Total dos tributos (formato não reconhecido)', '']] : []),
     ['Valor (US$)', profile.valor.usd],
   ];
   const missing = required.filter(([, v]) => !v).map(([k]) => k);

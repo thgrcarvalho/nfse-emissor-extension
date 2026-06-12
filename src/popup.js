@@ -323,7 +323,9 @@ function setProfileInfo(profile, source, withValor = false) {
     }[source] || '';
   const mun = (profile.servico && profile.servico.municipio && profile.servico.municipio.text) || '';
   const aliq = (profile.tributacao && profile.tributacao.aliquota_sn) || '';
-  const tomador = (profile.tomador && profile.tomador.nome) || '';
+  const tomador =
+    (profile.tomador && profile.tomador.nome) ||
+    (profile.tomador && profile.tomador.local === 'nao_informado' ? 'não informado' : '');
   el.className = 'profinfo' + (source === 'session' ? ' temp' : '');
   // A use-once override can be dropped manually (auto-clears at the review screen too).
   const revert =
@@ -336,7 +338,7 @@ function setProfileInfo(profile, source, withValor = false) {
   const valorStr = withValor && usd ? ` · Valor: US$ ${fmtUsd(usd)}` : '';
   el.innerHTML =
     `<div>Dados: <strong>${escapeHtml(profile.label || 'Perfil')}</strong> — <span class="src">${escapeHtml(srcText)}</span></div>` +
-    `<div class="k">Tomador: ${escapeHtml(tomador)} · ${escapeHtml(mun)} · Alíquota SN: ${escapeHtml(aliq)}%${valorStr}</div>` +
+    `<div class="k">Tomador: ${escapeHtml(tomador)} · ${escapeHtml(mun)}${aliq ? ` · Alíquota SN: ${escapeHtml(aliq)}%` : ''}${valorStr}</div>` +
     revert;
   el.style.display = '';
 }
