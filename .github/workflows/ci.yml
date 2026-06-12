@@ -7,6 +7,11 @@ on:
 permissions:
   contents: read
 
+# June 16 2026: GitHub forces JS actions onto Node 24; opt in early so a break
+# surfaces on our schedule (upload-artifact@v5 still declares node20).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   ci:
     runs-on: ubuntu-latest
