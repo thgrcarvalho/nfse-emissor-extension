@@ -714,8 +714,19 @@ $('profileInfo').addEventListener('click', async (e) => {
 // (no closure over panel code). The engine files are injected immediately before.
 function runEngine(pageId, cfg, state) {
   try {
-    if (!window.__nfseFillPlan || !window.__nfseApply) {
+    if (!window.__nfseFillPlan || !window.__nfseApply || !window.__nfseShapeGuard) {
       return Promise.resolve({ ok: false, err: 'motor de preenchimento ausente — recarregue a página' });
+    }
+    // Shape guard: refuse the WHOLE page when it (or the profile) isn't the supported
+    // export-of-service variant — never partially fill an unknown wizard shape.
+    const problems = window.__nfseShapeGuard(pageId, cfg);
+    if (problems.length) {
+      return Promise.resolve({
+        ok: false,
+        err:
+          'Página ou perfil fora do escopo suportado (exportação de serviço, Simples Nacional) — nada foi preenchido:\n' +
+          problems.map((p) => '• ' + p).join('\n'),
+      });
     }
     return window
       .__nfseApply(window.__nfseFillPlan(pageId, cfg, state))
@@ -793,7 +804,7 @@ $('fill').addEventListener('click', async () => {
       await ext.scripting.executeScript({
         target: { tabId: tab.id },
         world: 'MAIN',
-        files: ['src/fill-plan.js', 'src/field-ops.js'],
+        files: ['src/fill-plan.js', 'src/field-ops.js', 'src/shape-guard.js'],
       });
       const [r] = await ext.scripting.executeScript({
         target: { tabId: tab.id },

@@ -71,6 +71,11 @@
   }
 
   function applyOp(op) {
+    // A null/undefined value means the profile lacks this field. Writing it would put
+    // the literal string "undefined" in the form (and report ok) — fail the op instead.
+    if (op.value == null) {
+      return { sel: op.sel, name: op.name, ok: false, err: 'valor ausente no perfil — confira o cadastro' };
+    }
     if (op.t === 'text' || op.t === 'money') return setText(op.sel, op.value);
     if (op.t === 'chosen') return setChosen(op.sel, op.value, op.text);
     if (op.t === 'select2') return setSelect2(op.sel, op.value, op.text);

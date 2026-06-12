@@ -225,8 +225,23 @@ fetching `runtime.getURL`.
 14. ✅ First push done 2026-06-11 (six commits by functionality; PII scrubbed +
     history rebuilt before going public).
 
+**Post-review hardening — 2026-06-11:**
+15. ✅ Per-browser store packaging (`npm run build` → clean Chrome/Edge + Firefox
+    manifests and zips; sanitized config staged, real one barred; injected-engine-file
+    existence guard), PRIVACY.md, AMO `data_collection_permissions`, `homepage_url`.
+16. ✅ Fill-time shape guard (`src/shape-guard.js`, injected with the engine): refuses
+    the whole page when its signature controls or the profile aren't the supported
+    export-of-service/Simples shape — no partial fill of unknown wizard variants.
+    Engine now also fails any op whose profile value is null/undefined instead of
+    writing the literal "undefined". Live-validated: 35/35 fields with guard active.
+17. ✅ CI (lint, format check, build, AMO lint, artifact upload) + README badge; real
+    icon (SVG source + rendered 128/300 PNGs), placeholder generator removed.
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout
 injection could overlap a re-fill on a stuck page; chave-gerador município code when
-prestação ≠ company seat.
+prestação ≠ company seat; the shape guard asserts the *presence* of supported-shape
+controls and profile fields, not the *absence* of extra ones (a richer-but-compatible
+page variant still fills — portal validation and the human review cover it); only
+`valor_tributos_tipo` '4' (alíquota do Simples) is a supported profile shape.
