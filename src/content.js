@@ -46,22 +46,40 @@ const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
 // parseNota/fillPage message, so the file never needs to be web-accessible to the page.
 
 // ---- previous-nota parsing --------------------------------------------------------
-// The Visualizar page renders every field as a .form-group with a label + a
-// .form-control-static value (coded fields show "código - descrição"). Build a
-// label → [values] map (duplicate labels exist: emitente vs tomador).
-function notaLabelMap() {
+// The Visualizar page renders every field as a .form-group (label + .form-control-static,
+// coded fields show "código - descrição") inside Bootstrap panels titled "Emitente",
+// "Tomador", "Serviço Prestado", etc. Build a section → label → [values] map so
+// duplicate labels across sections (Endereço, Razão Social, Versão…) stay unambiguous.
+function notaSectionMap() {
   const map = {};
   document.querySelectorAll('.form-group').forEach((g) => {
     const l = g.querySelector('label.control-label span');
     const v = g.querySelector('.form-control-static');
     if (!l || !v) return;
     const k = (l.textContent || '').replace(/\s+/g, ' ').trim();
-    const val = (v.textContent || '').replace(/\s+/g, ' ').trim();
     if (!k) return;
-    (map[k] = map[k] || []).push(val);
+    const val = (v.textContent || '').replace(/\s+/g, ' ').trim();
+    // Container/heading selectors probed against the live page (2026-06).
+    const panel = g.closest('.panel, .card, .box, .conteudo');
+    const heading = panel && panel.querySelector('.panel-heading, .card-header, h1, h2, h3, h4');
+    const sec = heading ? (heading.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    const bySec = (map[sec] = map[sec] || {});
+    (bySec[k] = bySec[k] || []).push(val);
   });
   return map;
 }
+// Section titles as the portal renders them (probed live, 2026-06). A missing section
+// or label parses as '' and lands in the missing-fields report — fail loud, never grab
+// a same-named field from another section.
+const SEC = {
+  emitente: 'Emitente',
+  tomador: 'Tomador',
+  tribMunicipal: 'Tributação Municipal',
+  servico: 'Serviço Prestado',
+  comercioExterior: 'Importação/Exportação de Serviço Prestado',
+  tribFederal: 'Tributação Federal',
+  totalTributos: 'Total dos tributos',
+};
 
 // "140201 - Assistência técnica." → { value: "140201", text: "Assistência técnica." }
 function splitCodeText(v) {
@@ -111,6 +129,8 @@ const usdToNum = (s) => {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 };
 const chaveFromUrl = () => (location.pathname.match(/\/(\d{50})(?:\/|$)/) || [])[1] || '';
+// Chave de acesso (50 digits) layout offsets. Keep in sync with popup.js (nota number).
+const CHAVE = { municipio: [0, 7], numero: [23, 36] };
 
 // Builds a profile from the open nota. Client-specific fields come ONLY from the parsed
 // page — an unread field stays empty, never backfilled from the template, so one client's
@@ -122,10 +142,13 @@ const chaveFromUrl = () => (location.pathname.match(/\/(\d{50})(?:\/|$)/) || [])
 // couldn't read, so the panel warns before the profile is used or saved.
 async function buildProfileFromNota(template) {
   const chave = chaveFromUrl();
-  const map = notaLabelMap();
-  const first = (k) => (map[k] && map[k][0]) || '';
-  const enderecos = map['Endereço do Estabelecimento/Domicílio'] || [];
-  const extStr = enderecos.find((s) => /País\s/i.test(s)) || enderecos[enderecos.length - 1] || '';
+  const map = notaSectionMap();
+  // Scoped lookup: section title + label. No cross-section fallback by design.
+  const first = (sec, k) => {
+    const s = map[sec];
+    return (s && s[k] && s[k][0]) || '';
+  };
+  const extStr = first(SEC.tomador, 'Endereço do Estabelecimento/Domicílio');
 
   if (!template) {
     throw new Error('modelo de configuração indisponível — crie src/config.default.json a partir do config.example.json.');
@@ -134,14 +157,14 @@ async function buildProfileFromNota(template) {
   const t = (path) =>
     path.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), template) ?? '';
 
-  const cnpj = first('CNPJ'); // the emitente block's (the tomador no exterior has no CNPJ field)
+  const cnpj = first(SEC.emitente, 'CNPJ');
   if (!cnpj) throw new Error('CNPJ do emitente não encontrado na nota — perfil não criado.');
 
-  const ctn = splitCodeText(first('Código de Tributação Nacional'));
+  const ctn = splitCodeText(first(SEC.servico, 'Código de Tributação Nacional'));
   ctn.value = formatCTN(ctn.value);
 
   const profile = {
-    label: first('Razão Social') || 'Cliente',
+    label: first(SEC.emitente, 'Razão Social') || 'Cliente',
     cnpj,
     sourceChave: chave, // which nota this profile was built from (marks the default)
     page1: {
@@ -149,21 +172,24 @@ async function buildProfileFromNota(template) {
       tomador_motivo_nif: t('page1.tomador_motivo_nif'),
     },
     tomador: {
-      nome: first('Nome/Razão Social'),
+      nome: first(SEC.tomador, 'Nome/Razão Social'),
       endereco_exterior: Object.assign(parseExterior(extStr), {
         pais_codigo: t('tomador.endereco_exterior.pais_codigo'),
       }),
     },
     servico: {
-      municipio: { value: chave.slice(0, 7), text: first('Município') },
+      // text = local da prestação (Serviço Prestado panel); value = the chave's
+      // município gerador code — same municipality whenever the service is rendered
+      // from the company seat (this tool's scenario).
+      municipio: { value: chave.slice(CHAVE.municipio[0], CHAVE.municipio[1]), text: first(SEC.servico, 'Município') },
       ctn,
-      complementar: splitCodeText(first('Código de Tributação Municipal')),
-      motivo_nao_tributacao: leadCode(first('Tributação do ISSQN')),
-      descricao: first('Descrição do serviço'),
-      nbs: splitCodeText(first('Item da NBS correspondente ao serviço prestado')),
+      complementar: splitCodeText(first(SEC.servico, 'Código de Tributação Municipal')),
+      motivo_nao_tributacao: leadCode(first(SEC.tribMunicipal, 'Tributação do ISSQN')),
+      descricao: first(SEC.servico, 'Descrição do serviço'),
+      nbs: splitCodeText(first(SEC.servico, 'Item da NBS correspondente ao serviço prestado')),
       pais_resultado: t('servico.pais_resultado'),
       comercio_exterior: {
-        moeda: leadCode(first('Moeda')), // bare code ('840'), like every other coded field
+        moeda: leadCode(first(SEC.comercioExterior, 'Moeda')), // bare code ('840')
         modo: t('servico.comercio_exterior.modo'),
         vinculo: t('servico.comercio_exterior.vinculo'),
         mec_prest: t('servico.comercio_exterior.mec_prest'),
@@ -173,12 +199,12 @@ async function buildProfileFromNota(template) {
       },
     },
     tributacao: {
-      pis_situacao: leadCode(first('Situação tributária do PIS/COFINS')),
-      pis_retencao: leadCode(first('Descrição Contribuições Sociais - Retidas')),
-      aliquota_sn: first('Valor percentual aproximado do total dos tributos da alíquota do Simples Nacional'),
+      pis_situacao: leadCode(first(SEC.tribFederal, 'Situação tributária do PIS/COFINS')),
+      pis_retencao: leadCode(first(SEC.tribFederal, 'Descrição Contribuições Sociais - Retidas')),
+      aliquota_sn: first(SEC.totalTributos, 'Valor percentual aproximado do total dos tributos da alíquota do Simples Nacional'),
       valor_tributos_tipo: t('tributacao.valor_tributos_tipo'),
     },
-    valor: { usd: usdToNum(first('Valor do serviço em moeda estrangeira')) },
+    valor: { usd: usdToNum(first(SEC.comercioExterior, 'Valor do serviço em moeda estrangeira')) },
   };
 
   const required = [
@@ -202,7 +228,7 @@ async function buildProfileFromNota(template) {
   ];
   const missing = required.filter(([, v]) => !v).map(([k]) => k);
 
-  return { profile, emitente: { cnpj, nome: first('Razão Social') }, chave, missing };
+  return { profile, emitente: { cnpj, nome: first(SEC.emitente, 'Razão Social') }, chave, missing };
 }
 
 // ---- fill -------------------------------------------------------------------------
