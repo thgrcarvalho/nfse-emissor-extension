@@ -161,6 +161,12 @@
     if (pageId === 'servico') {
       const s = cfg.servico;
       const ce = s.comercio_exterior;
+      if (String(s.motivo_nao_tributacao) !== '3') {
+        // Defesa em profundidade (a guarda já recusa): imunidade exige o TipoImunidade
+        // (não preenchido) e não-incidência depende do CTN (modal bloqueante do
+        // portal) — só a exportação é construível.
+        throw new Error('motivo da não tributação não suportado: ' + s.motivo_nao_tributacao);
+      }
       return [
         { t: 'chosen', sel: '#LocalPrestacao_CodigoPaisPrestacao', value: 'BR', label: 'País da prestação' },
         // município → enables CTN → populates Complementar: let each cascade settle.
@@ -258,6 +264,11 @@
     if (pageId === 'valores') {
       const t = cfg.tributacao;
       const tipo = String(t.valor_tributos_tipo);
+      if (tipo !== '1' && tipo !== '2' && tipo !== '4') {
+        // Defesa em profundidade (a guarda já recusa): nunca construir o rascunho que
+        // o portal rejeita na emissão de ME/EPP (tipo 3) nem um tipo desconhecido.
+        throw new Error('tipo do valor dos tributos não suportado: ' + tipo);
+      }
       const ops = [
         {
           t: 'money',
@@ -318,7 +329,6 @@
           label: 'Alíquota do Simples Nacional',
         });
       }
-      // tipo '3' (não informar): o próprio radio é o ramo inteiro.
       return ops;
     }
 
