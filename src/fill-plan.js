@@ -10,7 +10,7 @@
 
   window.__nfseFillPlan = function (pageId, cfg, state) {
     if (pageId === 'pessoas') {
-      const e = cfg.tomador.endereco_exterior;
+      const tom = cfg.tomador;
       const ops = [
         { t: 'text', sel: '#DataCompetencia', value: state.competencia, label: 'Data de competência' },
         {
@@ -19,50 +19,132 @@
           value: cfg.page1.regime_sn,
           label: 'Regime do Simples Nacional',
         },
-        { t: 'radio', name: 'Tomador.LocalDomicilio', value: '2', label: 'Domicílio do tomador (Exterior)' },
-        { t: 'radio', name: 'Tomador.NIFInformado', value: '0', label: 'NIF informado (Não)' },
-        {
-          t: 'chosen',
-          sel: '#Tomador_MotivoNaoInformacaoNIF',
-          value: cfg.page1.tomador_motivo_nif,
-          label: 'Motivo de não informar o NIF',
-        },
-        { t: 'text', sel: '#Tomador_Nome', value: cfg.tomador.nome, label: 'Nome do tomador' },
-        {
-          t: 'text',
-          sel: '#Tomador_EnderecoExterior_Logradouro',
-          value: e.logradouro,
-          label: 'Logradouro (tomador)',
-        },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_Numero', value: e.numero, label: 'Número (tomador)' },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_Bairro', value: e.bairro, label: 'Bairro (tomador)' },
-        { t: 'text', sel: '#Tomador_EnderecoExterior_Cidade', value: e.cidade, label: 'Cidade (tomador)' },
-        {
-          t: 'text',
-          sel: '#Tomador_EnderecoExterior_CodigoEnderecamentoPostal',
-          value: e.cep,
-          label: 'Endereço postal (tomador)',
-        },
-        {
-          t: 'text',
-          sel: '#Tomador_EnderecoExterior_EstadoProvinciaRegiao',
-          value: e.estado,
-          label: 'Estado/região (tomador)',
-        },
-        {
-          t: 'chosen',
-          sel: '#Tomador_EnderecoExterior_CodigoPais',
-          value: e.pais_codigo,
-          label: 'País (tomador)',
-        },
       ];
-      if (e.complemento) {
+
+      if (tom.local === 'nao_informado') {
         ops.push({
-          t: 'text',
-          sel: '#Tomador_EnderecoExterior_Complemento',
-          value: e.complemento,
-          label: 'Complemento (tomador)',
+          t: 'radio',
+          name: 'Tomador.LocalDomicilio',
+          value: '0',
+          label: 'Domicílio do tomador (Não informado)',
         });
+        return ops; // no tomador section at all — the radio is the whole branch
+      }
+
+      if (tom.local === 'brasil') {
+        ops.push(
+          {
+            t: 'radio',
+            name: 'Tomador.LocalDomicilio',
+            value: '1',
+            waitAfter: 400,
+            label: 'Domicílio do tomador (Brasil)',
+          },
+          // Inscrição settles first: the portal consults o cadastro (RFB) and can
+          // auto-preencher o nome. O endereço vem desse cadastro — nunca tocamos em
+          // #Tomador_InformarEndereco.
+          {
+            t: 'text',
+            sel: '#Tomador_Inscricao',
+            value: tom.inscricao,
+            waitAfter: 600,
+            label: 'CPF/CNPJ do tomador',
+          },
+        );
+        if (tom.inscricao_municipal) {
+          ops.push({
+            t: 'text',
+            sel: '#Tomador_InscricaoMunicipal',
+            value: tom.inscricao_municipal,
+            label: 'Inscrição municipal do tomador',
+          });
+        }
+        ops.push({ t: 'text', sel: '#Tomador_Nome', value: tom.nome, label: 'Nome do tomador' });
+      }
+
+      if (tom.local === 'exterior') {
+        const e = tom.endereco_exterior;
+        const nifInformado = String((tom.nif && tom.nif.informado) || '0') === '1';
+        ops.push(
+          {
+            t: 'radio',
+            name: 'Tomador.LocalDomicilio',
+            value: '2',
+            label: 'Domicílio do tomador (Exterior)',
+          },
+          // O portal limpa a escolha de NIF quando o domicílio muda (probed) — o
+          // grupo NIF é definido logo após o domicílio, antes do campo dependente.
+          ...(nifInformado
+            ? [
+                {
+                  t: 'radio',
+                  name: 'Tomador.NIFInformado',
+                  value: '1',
+                  waitAfter: 300,
+                  label: 'NIF informado (Sim)',
+                },
+                { t: 'text', sel: '#Tomador_NIF', value: tom.nif.valor, label: 'NIF do tomador' },
+              ]
+            : [
+                {
+                  t: 'radio',
+                  name: 'Tomador.NIFInformado',
+                  value: '0',
+                  waitAfter: 300,
+                  label: 'NIF informado (Não)',
+                },
+                {
+                  t: 'chosen',
+                  sel: '#Tomador_MotivoNaoInformacaoNIF',
+                  value: cfg.page1.tomador_motivo_nif,
+                  label: 'Motivo de não informar o NIF',
+                },
+              ]),
+          { t: 'text', sel: '#Tomador_Nome', value: tom.nome, label: 'Nome do tomador' },
+          {
+            t: 'text',
+            sel: '#Tomador_EnderecoExterior_Logradouro',
+            value: e.logradouro,
+            label: 'Logradouro (tomador)',
+          },
+          { t: 'text', sel: '#Tomador_EnderecoExterior_Numero', value: e.numero, label: 'Número (tomador)' },
+          { t: 'text', sel: '#Tomador_EnderecoExterior_Bairro', value: e.bairro, label: 'Bairro (tomador)' },
+          { t: 'text', sel: '#Tomador_EnderecoExterior_Cidade', value: e.cidade, label: 'Cidade (tomador)' },
+          {
+            t: 'text',
+            sel: '#Tomador_EnderecoExterior_CodigoEnderecamentoPostal',
+            value: e.cep,
+            label: 'Endereço postal (tomador)',
+          },
+          {
+            t: 'text',
+            sel: '#Tomador_EnderecoExterior_EstadoProvinciaRegiao',
+            value: e.estado,
+            label: 'Estado/região (tomador)',
+          },
+          {
+            t: 'chosen',
+            sel: '#Tomador_EnderecoExterior_CodigoPais',
+            value: e.pais_codigo,
+            label: 'País (tomador)',
+          },
+        );
+        if (e.complemento) {
+          ops.push({
+            t: 'text',
+            sel: '#Tomador_EnderecoExterior_Complemento',
+            value: e.complemento,
+            label: 'Complemento (tomador)',
+          });
+        }
+      }
+
+      // Contato (Brasil e exterior): campos opcionais do portal — só entram com valor.
+      if (tom.telefone) {
+        ops.push({ t: 'text', sel: '#Tomador_Telefone', value: tom.telefone, label: 'Telefone do tomador' });
+      }
+      if (tom.email) {
+        ops.push({ t: 'text', sel: '#Tomador_Email', value: tom.email, label: 'E-mail do tomador' });
       }
       return ops;
     }

@@ -6,7 +6,11 @@
     "tomador_motivo_nif": "2"
   },
   "tomador": {
+    "local": "exterior",
+    "nif": { "informado": "0" },
     "nome": "Example Client Inc.",
+    "telefone": "",
+    "email": "",
     "endereco_exterior": {
       "logradouro": "Main St",
       "numero": "100",
@@ -25,7 +29,10 @@
     "motivo_nao_tributacao": "3",
     "pais_resultado": "US",
     "descricao": "Os serviços prestados estão isentos de ISS conforme Lei 116/2003 artigo 2° inciso I\nArt.2° O imposto não incide sobre:\nI – as exportações de serviços para o exterior do País",
-    "nbs": { "value": "120012000", "text": "120012000 - Serviços de manutenção e reparação de computadores e seus periféricos e de maquinário para escritório" },
+    "nbs": {
+      "value": "120012000",
+      "text": "120012000 - Serviços de manutenção e reparação de computadores e seus periféricos e de maquinário para escritório"
+    },
     "comercio_exterior": {
       "modo": "4",
       "vinculo": "0",

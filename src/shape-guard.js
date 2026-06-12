@@ -27,6 +27,19 @@
           label: 'domicílio do tomador',
           path: ['tomador', 'local'],
           variants: {
+            nao_informado: {
+              cfg: [],
+              controls: [
+                ['input[name="Tomador.LocalDomicilio"][value="0"]', 'opção de tomador não informado'],
+              ],
+            },
+            brasil: {
+              cfg: [
+                ['tomador', 'inscricao'],
+                ['tomador', 'nome'],
+              ],
+              controls: [['input[name="Tomador.LocalDomicilio"][value="1"]', 'opção de tomador no Brasil']],
+            },
             exterior: {
               cfg: [
                 ['tomador', 'nome'],
@@ -46,6 +59,10 @@
             0: {
               cfg: [['page1', 'tomador_motivo_nif']],
               controls: [['input[name="Tomador.NIFInformado"][value="0"]', 'opção de NIF não informado']],
+            },
+            1: {
+              cfg: [['tomador', 'nif', 'valor']],
+              controls: [['input[name="Tomador.NIFInformado"][value="1"]', 'opção de NIF informado']],
             },
           },
         },

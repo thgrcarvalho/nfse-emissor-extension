@@ -179,6 +179,15 @@ async function buildProfileFromNota(template) {
   };
   const extStr = first(SEC.tomador, 'Endereço do Estabelecimento/Domicílio');
 
+  // Tomador variant, inferred from how the Visualizar page renders it: no Tomador
+  // section → não informado; a CPF/CNPJ row → Brasil; otherwise exterior (the
+  // address line carries "País …"). NIF and contato are read when shown, '' when not.
+  const hasTomador = !!map[SEC.tomador];
+  const tomInscricao =
+    first(SEC.tomador, 'CPF/CNPJ') || first(SEC.tomador, 'CNPJ') || first(SEC.tomador, 'CPF');
+  const tomLocal = !hasTomador ? 'nao_informado' : tomInscricao ? 'brasil' : 'exterior';
+  const nifValor = first(SEC.tomador, 'NIF');
+
   if (!template) {
     throw new Error(
       'modelo de configuração indisponível — crie src/config.default.json a partir do config.example.json.',
@@ -194,6 +203,27 @@ async function buildProfileFromNota(template) {
   const ctn = splitCodeText(first(SEC.servico, 'Código de Tributação Nacional'));
   ctn.value = formatCTN(ctn.value);
 
+  // Only the fields of the inferred variant enter the profile — a Brasil tomador
+  // never carries a half-parsed "endereço exterior", and vice versa.
+  const tomador = {
+    local: tomLocal,
+    nif: nifValor ? { informado: '1', valor: nifValor } : { informado: '0' },
+  };
+  if (tomLocal !== 'nao_informado') {
+    tomador.nome = first(SEC.tomador, 'Nome/Razão Social');
+    tomador.telefone = first(SEC.tomador, 'Telefone');
+    tomador.email = first(SEC.tomador, 'E-mail');
+  }
+  if (tomLocal === 'brasil') {
+    tomador.inscricao = tomInscricao;
+    tomador.inscricao_municipal = first(SEC.tomador, 'Inscrição Municipal');
+  }
+  if (tomLocal === 'exterior') {
+    tomador.endereco_exterior = Object.assign(parseExterior(extStr), {
+      pais_codigo: t('tomador.endereco_exterior.pais_codigo'),
+    });
+  }
+
   const razaoSocial = first(SEC.emitente, 'Razão Social');
   const profile = {
     label: razaoSocial || 'Cliente',
@@ -203,12 +233,7 @@ async function buildProfileFromNota(template) {
       regime_sn: t('page1.regime_sn'),
       tomador_motivo_nif: t('page1.tomador_motivo_nif'),
     },
-    tomador: {
-      nome: first(SEC.tomador, 'Nome/Razão Social'),
-      endereco_exterior: Object.assign(parseExterior(extStr), {
-        pais_codigo: t('tomador.endereco_exterior.pais_codigo'),
-      }),
-    },
+    tomador,
     servico: {
       // text = local da prestação (Serviço Prestado panel); value = the chave's
       // município gerador code — same municipality whenever the service is rendered
@@ -247,13 +272,19 @@ async function buildProfileFromNota(template) {
 
   const required = [
     ['Razão Social do emitente', razaoSocial],
-    ['Tomador', profile.tomador.nome],
-    ['Endereço do tomador', profile.tomador.endereco_exterior.logradouro],
-    ['Número do endereço', profile.tomador.endereco_exterior.numero],
-    ['Bairro do tomador', profile.tomador.endereco_exterior.bairro],
-    ['Cidade do tomador', profile.tomador.endereco_exterior.cidade],
-    ['CEP/postal do tomador', profile.tomador.endereco_exterior.cep],
-    ['Estado do tomador', profile.tomador.endereco_exterior.estado],
+    // Tomador requirements follow the inferred variant — não informado requires nothing.
+    ...(tomLocal !== 'nao_informado' ? [['Tomador', tomador.nome]] : []),
+    ...(tomLocal === 'brasil' ? [['CPF/CNPJ do tomador', tomador.inscricao]] : []),
+    ...(tomLocal === 'exterior'
+      ? [
+          ['Endereço do tomador', tomador.endereco_exterior.logradouro],
+          ['Número do endereço', tomador.endereco_exterior.numero],
+          ['Bairro do tomador', tomador.endereco_exterior.bairro],
+          ['Cidade do tomador', tomador.endereco_exterior.cidade],
+          ['CEP/postal do tomador', tomador.endereco_exterior.cep],
+          ['Estado do tomador', tomador.endereco_exterior.estado],
+        ]
+      : []),
     ['Município da prestação', profile.servico.municipio.value && profile.servico.municipio.text],
     // CTN/NBS need value AND text: an AJAX select only accepts an injected option with both.
     ['CTN', profile.servico.ctn.value && profile.servico.ctn.text],
@@ -270,7 +301,7 @@ async function buildProfileFromNota(template) {
   const missing = required.filter(([, v]) => !v).map(([k]) => k);
   // The profile fills 'US' (template) as the tomador country — warn when the nota's
   // displayed country doesn't look like the US, instead of silently mislabeling it.
-  const paisNome = profile.tomador.endereco_exterior.pais_nome;
+  const paisNome = tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : '';
   if (paisNome && !/estados unidos/i.test(paisNome)) {
     missing.push(`País do tomador (a nota indica "${paisNome}", mas o perfil usará EUA — confira)`);
   }
