@@ -204,9 +204,29 @@ fetching `runtime.getURL`.
     Deferred (low): per-origin diagnostic when only the BCB grant is revoked (CORS makes
     it moot today); armed delete button disarms on background tab events.
 
-**Phase 4 — opportunistic hardening & hygiene:**
-12. M6 (scoped label map / local da prestação), M7 (cascade polling), M12 (executeScript
-    bridge), refreshView generation guard + onUpdated filter, sw.js Chrome fallback.
-13. Delete `profileFor`; single resolution function; shared util helpers; named chave
-    offsets; ESLint + Prettier; README fixes; a11y pass.
-14. First commit: `git add -A` (stale index), then commit in logical chunks.
+**Phase 4 — opportunistic hardening & hygiene — ✅ DONE 2026-06-12:**
+12. ✅ M6: section-scoped nota parser (panels probed live: Emitente/Tomador/Serviço
+    Prestado/Importação-Exportação/Tributação Municipal/Federal/Total dos tributos);
+    no cross-section fallback — a moved label lands in the missing report. The
+    município code still comes from the chave (gerador); accepted while prestação ==
+    seat (the tool's scenario). País: template 'US' + a warning when the nota's
+    displayed country isn't the US.
+    ✅ M7: cascade polling (early-exit on dependent-ready + value-held), single
+    re-apply on wipe, and a final coherence pass that downgrades any op whose value a
+    late rebuild erased. Live-validated: 35/35 fields on the real wizard.
+    ✅ M12: fill now goes popup → content (resolveFill guards, extension channel) →
+    `scripting.executeScript` world:MAIN (engine files + profile injected on demand).
+    `web_accessible_resources`-free, page-agent.js deleted, no page-observable bridge.
+    ✅ refreshView gen guard (Phase 1), onUpdated active-tab filter, sw.js
+    `sidePanel.open` click fallback.
+13. ✅ `profileFor` deleted (Phase 1); named CHAVE offsets; ESLint (flat) + Prettier
+    with full one-time format; README fixes (Phases 2-3); a11y pass (title, aria-live
+    status regions, aria-labels on icon buttons, focus fix).
+14. ✅ First push done 2026-06-11 (six commits by functionality; PII scrubbed +
+    history rebuilt before going public).
+
+**Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
+two panels; override consumption needs the panel open at the review-exit; engine
+globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout
+injection could overlap a re-fill on a stuck page; chave-gerador município code when
+prestação ≠ company seat.

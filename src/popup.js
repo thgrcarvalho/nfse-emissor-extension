@@ -803,6 +803,7 @@ $('fill').addEventListener('click', async () => {
       });
       return r && r.result;
     })();
+    exec.catch(() => {}); // a rejection after the watchdog wins must not go unhandled
     const outcome = await Promise.race([exec, new Promise((r) => setTimeout(() => r('timeout'), 35000))]);
     if (outcome === 'timeout') {
       status.className = 'bad';

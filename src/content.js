@@ -1,8 +1,8 @@
 // Cross-browser: `browser` (Firefox, promise-based) or `chrome` (Chromium MV3, also promises).
 const ext = globalThis.browser || globalThis.chrome;
 // Isolated world. Detects the current portal page, reads the logged-in identity, parses
-// a previously emitted nota (Visualizar page) into a client profile, and relays fill /
-// parse requests to the MAIN-world engine.
+// a previously emitted nota (Visualizar page) into a client profile, and resolves which
+// profile a fill may use (the panel injects the engine itself via scripting.executeScript).
 //
 // Profiles are keyed by the prestador CNPJ. The fill uses, in order: a session "use once"
 // override passed by the panel, a saved profile (storage.local), or the bundled config —
@@ -43,7 +43,7 @@ function readIdentity() {
 
 const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
 // The bundled config template is NOT fetched here: the panel sends it along with each
-// parseNota/fillPage message, so the file never needs to be web-accessible to the page.
+// parseNota/resolveFill message, so the file never needs to be web-accessible to the page.
 
 // ---- previous-nota parsing --------------------------------------------------------
 // The Visualizar page renders every field as a .form-group (label + .form-control-static,
@@ -97,10 +97,20 @@ const formatCTN = (v) => (/^\d+$/.test(v) && v.length % 2 === 0 ? v.match(/\d{2}
 // "{logradouro} , {numero}[ , {compl}] , Bairro {bairro} , Endereço Postal {cep} , {cidade} , {estado}, País {pais}"
 function parseExterior(s) {
   s = String(s || '').trim();
-  const out = { logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', cep: '', estado: '' };
+  const out = {
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    cep: '',
+    estado: '',
+    pais_nome: '', // display name only ('Estados Unidos da América') — NOT the ISO code
+  };
   const iBairro = s.indexOf('Bairro ');
   const iCep = s.search(/Endereço Postal\s/);
   const iPais = s.search(/País\s/);
+  if (iPais >= 0) out.pais_nome = s.slice(iPais + 'País '.length).trim();
   const head = (iBairro >= 0 ? s.slice(0, iBairro) : s).replace(/,\s*$/, '').trim();
   const hp = head.split(/\s*,\s*/).filter(Boolean);
   out.logradouro = hp[0] || '';
@@ -137,9 +147,12 @@ const CHAVE = { municipio: [0, 7], numero: [23, 36] };
 
 // Builds a profile from the open nota. Client-specific fields come ONLY from the parsed
 // page — an unread field stays empty, never backfilled from the template, so one client's
-// data can never leak into another's profile. The bundled template contributes ONLY the
-// scenario constants the Visualizar page doesn't show (regime, comércio-exterior codes,
-// país). Throws when the emitente CNPJ or the template can't be read (fail loudly rather
+// data can never leak into another's profile. The bundled template contributes ONLY
+// scenario constants (regime, comércio-exterior codes) plus the país ISO codes: the nota
+// shows the tomador country only as a display name, and mapping name → ISO would need a
+// country table — so the template's 'US' is used and a warning is raised when the nota's
+// display name doesn't look like the US (the tool is Brasil→EUA-scoped for now).
+// Throws when the emitente CNPJ or the template can't be read (fail loudly rather
 // than build a profile that could be keyed or filled wrong). Returns
 // { profile, emitente, chave, missing } — `missing` lists required fields the parse
 // couldn't read, so the panel warns before the profile is used or saved.
@@ -168,8 +181,9 @@ async function buildProfileFromNota(template) {
   const ctn = splitCodeText(first(SEC.servico, 'Código de Tributação Nacional'));
   ctn.value = formatCTN(ctn.value);
 
+  const razaoSocial = first(SEC.emitente, 'Razão Social');
   const profile = {
-    label: first(SEC.emitente, 'Razão Social') || 'Cliente',
+    label: razaoSocial || 'Cliente',
     cnpj,
     sourceChave: chave, // which nota this profile was built from (marks the default)
     page1: {
@@ -219,18 +233,21 @@ async function buildProfileFromNota(template) {
   };
 
   const required = [
+    ['Razão Social do emitente', razaoSocial],
     ['Tomador', profile.tomador.nome],
     ['Endereço do tomador', profile.tomador.endereco_exterior.logradouro],
     ['Número do endereço', profile.tomador.endereco_exterior.numero],
+    ['Bairro do tomador', profile.tomador.endereco_exterior.bairro],
     ['Cidade do tomador', profile.tomador.endereco_exterior.cidade],
     ['CEP/postal do tomador', profile.tomador.endereco_exterior.cep],
     ['Estado do tomador', profile.tomador.endereco_exterior.estado],
     ['Município da prestação', profile.servico.municipio.value && profile.servico.municipio.text],
-    ['CTN', profile.servico.ctn.value],
+    // CTN/NBS need value AND text: an AJAX select only accepts an injected option with both.
+    ['CTN', profile.servico.ctn.value && profile.servico.ctn.text],
     ['Código municipal', profile.servico.complementar.value],
     ['Tributação do ISSQN', profile.servico.motivo_nao_tributacao],
     ['Descrição', profile.servico.descricao],
-    ['NBS', profile.servico.nbs.value],
+    ['NBS', profile.servico.nbs.value && profile.servico.nbs.text],
     ['Moeda', profile.servico.comercio_exterior.moeda],
     ['Situação PIS/COFINS', profile.tributacao.pis_situacao],
     ['Retenção PIS/COFINS', profile.tributacao.pis_retencao],
@@ -238,8 +255,14 @@ async function buildProfileFromNota(template) {
     ['Valor (US$)', profile.valor.usd],
   ];
   const missing = required.filter(([, v]) => !v).map(([k]) => k);
+  // The profile fills 'US' (template) as the tomador country — warn when the nota's
+  // displayed country doesn't look like the US, instead of silently mislabeling it.
+  const paisNome = profile.tomador.endereco_exterior.pais_nome;
+  if (paisNome && !/estados unidos/i.test(paisNome)) {
+    missing.push(`País do tomador (a nota indica "${paisNome}", mas o perfil usará EUA — confira)`);
+  }
 
-  return { profile, emitente: { cnpj, nome: first(SEC.emitente, 'Razão Social') }, chave, missing };
+  return { profile, emitente: { cnpj, nome: razaoSocial }, chave, missing };
 }
 
 // ---- fill -------------------------------------------------------------------------

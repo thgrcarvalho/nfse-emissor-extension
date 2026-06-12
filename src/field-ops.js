@@ -90,9 +90,16 @@
 
   // Is the next op's target usable yet? (Cascades disable/replace the dependent control.)
   function depReady(nextOp) {
-    if (!nextOp || !nextOp.sel) return true;
-    const el = document.querySelector(nextOp.sel);
-    return !!el && !el.disabled;
+    if (!nextOp) return true;
+    if (nextOp.sel) {
+      const el = document.querySelector(nextOp.sel);
+      return !!el && !el.disabled;
+    }
+    if (nextOp.name) {
+      const r = document.querySelector(`input[name="${nextOp.name}"][value="${nextOp.value}"]`);
+      return !!r && !r.disabled;
+    }
+    return true;
   }
 
   window.__nfseApply = async function (ops) {
@@ -123,6 +130,17 @@
         }
       }
       results.push(Object.assign({ label: op.label || op.sel || op.name }, res));
+    }
+    // Final coherence pass: a late cascade rebuild can wipe an EARLIER field after its
+    // op already reported ok (e.g. complementar wiped by CTN's slow repopulation).
+    // Re-check every value-bearing op against the page's real end state.
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
+      if (!results[i].ok || op.value == null || !(op.sel || op.name)) continue;
+      if (!selfHolds(op)) {
+        results[i].ok = false;
+        results[i].err = 'valor não persistiu (a página o recarregou) — preencha de novo';
+      }
     }
     return results;
   };
