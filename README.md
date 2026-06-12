@@ -1,5 +1,7 @@
 # NFS-e Nacional — Preenchimento automático
 
+[![CI](https://github.com/thgrcarvalho/nfse-emissor-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/thgrcarvalho/nfse-emissor-extension/actions/workflows/ci.yml)
+
 Extensão de navegador (Manifest V3) que **preenche o rascunho da NFS-e** no
 [Emissor Nacional](https://www.nfse.gov.br/EmissorNacional) para **exportação de
 serviços** — ME/EPP no Simples Nacional, tomador no exterior, ISS não incidente
@@ -36,11 +38,10 @@ Como roda dentro do **seu navegador, já logado**, não esbarra nas defesas do p
 
 A mesma pasta serve para os três navegadores.
 
-1. `node scripts/make-icon.mjs` (gera o ícone; só na primeira vez).
-2. `cp src/config.example.json src/config.default.json` e preencha com os seus dados —
+1. `cp src/config.example.json src/config.default.json` e preencha com os seus dados —
    o arquivo real fica fora do git (gitignored), então dados de cliente nunca vão para o
-   repositório. (Opcional: dá para criar perfis só a partir de uma nota emitida, passo 5.)
-3. Carregue a extensão:
+   repositório. (Opcional: dá para criar perfis só a partir de uma nota emitida, passo 4.)
+2. Carregue a extensão:
    - **Chrome / Edge:** `chrome://extensions` (ou `edge://extensions`) → ative o
      **Modo do desenvolvedor** → **Carregar sem compactação** → selecione esta pasta.
      O ícone na barra abre o **painel lateral**.
@@ -51,10 +52,10 @@ A mesma pasta serve para os três navegadores.
      disser que o site é errado, conceda as permissões em `about:addons` → extensão →
      Permissões. Extensões temporárias somem ao fechar o Firefox (limitação do modo
      desenvolvedor).
-4. Faça login no Emissor Nacional e abra o painel.
-5. **Primeira vez com um cliente:** abra uma nota já emitida dele (pelo portal) → o
+3. Faça login no Emissor Nacional e abra o painel.
+4. **Primeira vez com um cliente:** abra uma nota já emitida dele (pelo portal) → o
    painel mostra os dados lidos → **Salvar como padrão**.
-6. **Cada emissão:** inicie a **Emissão completa**; em cada página confirme competência
+5. **Cada emissão:** inicie a **Emissão completa**; em cada página confirme competência
    e valor em US$ (o câmbio preenche sozinho), clique **Preencher página atual**, confira
    e **Avançar**. Na tela final, revise e clique **Emitir** você mesmo.
 
@@ -93,6 +94,9 @@ Política completa em [PRIVACY.md](PRIVACY.md). Em resumo:
   cascade order reverse-engineered from the portal's wizard).
 - `src/field-ops.js` — applies them via the page's own jQuery (Chosen/select2 aware),
   polling AJAX cascades and re-applying values a late rebuild wiped.
+- `src/shape-guard.js` — pre-flight: refuses the whole page when its controls (or the
+  profile) don't match the supported export-of-service shape, so an unknown wizard
+  variant is never partially filled.
 - `src/rate.js` — BCB PTAX (fechamento, compra) lookup by competência date, with
   weekend/holiday walk-back.
 - `src/popup.*` — the side panel (identity, profiles, per-run inputs, fill trigger).

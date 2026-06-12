@@ -1,0 +1,29 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      - name: AMO lint (Firefox package)
+        run: npx --yes web-ext@8 lint --source-dir dist/firefox
+      - name: Upload store packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-packages
+          path: dist/*.zip
