@@ -34,6 +34,30 @@ Como roda dentro do **seu navegador, já logado**, não esbarra nas defesas do p
 - Preenche as três páginas do assistente (Pessoas → Serviço → Valores) sob demanda;
   **para na tela de revisão — nunca emite sozinha.**
 
+## Escopo suportado
+
+A extensão preenche **um** formato de nota, de ponta a ponta — e **se recusa a
+preencher** quando a página ou o perfil não apresentam os campos desse formato
+(guarda de formato: nada é preenchido parcialmente). Variantes que apenas
+_acrescentem_ campos aos do formato suportado não são detectadas pela guarda —
+a conferência antes de emitir continua indispensável.
+
+- Exportação de serviço — ISS não incidente (LC 116/2003, art. 2º, I);
+- Emitente ME/EPP no **Simples Nacional** (tributos informados por alíquota do SN);
+- Tomador **no exterior**, sem NIF informado;
+- Valor do serviço em **US$**, convertido pela PTAX do Banco Central.
+
+Notas fora desse formato (tomador no Brasil, ISS devido, retenções, NIF informado,
+intermediário de serviço etc.) **ainda não são suportadas** — o painel avisa e nada
+é preenchido.
+
+**Versão do portal validada: Emissor Nacional 1.6.0.0.** O portal exibe a versão em
+todas as páginas; quando ela for diferente da validada — ou não puder ser lida — o
+painel mostra um aviso (inclusive antes do login): o assistente pode ter mudado e
+cada campo preenchido merece conferência redobrada. A fonte canônica do valor é
+`SUPPORTED_PORTAL_VERSION` em `src/popup.js`; ao revalidar a extensão contra uma
+nova versão do portal, atualize lá e neste README.
+
 ## Instalação (modo desenvolvedor) — Chrome, Edge e Firefox
 
 A mesma pasta serve para os três navegadores.
@@ -87,9 +111,9 @@ Política completa em [PRIVACY.md](PRIVACY.md). Em resumo:
 
 ## Arquitetura (en)
 
-- `src/content.js` — isolated world: detects the page + login identity, parses an
-  emitted nota into a client profile (section-scoped, fail-closed on unreadable CNPJ),
-  resolves which profile a fill may use.
+- `src/content.js` — isolated world: detects the page + login identity + the portal's
+  displayed version, parses an emitted nota into a client profile (section-scoped,
+  fail-closed on unreadable CNPJ), resolves which profile a fill may use.
 - `src/fill-plan.js` — builds the ordered field operations per page (field ids and
   cascade order reverse-engineered from the portal's wizard).
 - `src/field-ops.js` — applies them via the page's own jQuery (Chosen/select2 aware),
@@ -117,6 +141,9 @@ service invoice) draft on the national Emissor Nacional for service exporters
 onboarding by parsing a previously emitted invoice, automatic BCB PTAX exchange rate.
 It fills the 3-page wizard; the human always reviews and clicks Emitir. Credential-free:
 it operates on the already-logged-in tab, and all data stays in local browser storage.
+Scope is deliberately narrow (see _Escopo suportado_): one invoice shape, enforced by a
+fill-time guard; validated against Emissor Nacional 1.6.0.0, with an in-panel warning
+when the live portal version differs.
 
 ## Aviso
 
