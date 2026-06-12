@@ -58,7 +58,23 @@ A mesma pasta serve para os três navegadores.
    e valor em US$ (o câmbio preenche sozinho), clique **Preencher página atual**, confira
    e **Avançar**. Na tela final, revise e clique **Emitir** você mesmo.
 
+## Empacotamento (build para as lojas)
+
+`npm run build` gera em `dist/` um pacote por navegador, cada um com um manifest
+limpo (sem os avisos de chaves cruzadas que o manifest único provoca no modo
+desenvolvedor):
+
+- `dist/chrome/` + `nfse-emissor-chrome-v*.zip` — Chrome Web Store **e** Edge Add-ons
+  (mesmo pacote), só com `side_panel` + `background.service_worker`.
+- `dist/firefox/` + `nfse-emissor-firefox-v*.zip` — Firefox AMO, só com
+  `sidebar_action` + `background.scripts` (event page).
+
+Os pacotes embarcam o `config.example.json` saneado como `config.default.json` —
+o arquivo real (gitignored) nunca entra no zip; o build aborta se divergir.
+
 ## Privacidade
+
+Política completa em [PRIVACY.md](PRIVACY.md). Em resumo:
 
 - A extensão **não pede, não vê e não armazena senhas** — ela atua na aba em que você
   já está logado.
