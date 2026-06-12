@@ -3,6 +3,7 @@
   "name": "NFS-e Nacional — Preenchimento (export EUA)",
   "version": "0.2.0",
   "description": "Preenche o rascunho da NFS-e no Emissor Nacional para exportação de serviço (ME/EPP, Brasil→EUA). Você revisa e emite.",
+  "homepage_url": "https://github.com/thgrcarvalho/nfse-emissor-extension",
   "permissions": ["storage", "activeTab", "scripting", "sidePanel"],
   "host_permissions": ["https://*.nfse.gov.br/*", "https://olinda.bcb.gov.br/*"],
   "action": {
@@ -17,7 +18,11 @@
   },
   "background": { "service_worker": "src/sw.js", "scripts": ["src/sw.js"] },
   "browser_specific_settings": {
-    "gecko": { "id": "nfse-emissor@trc.dev", "strict_min_version": "128.0" }
+    "gecko": {
+      "id": "nfse-emissor@trc.dev",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
   },
   "icons": { "128": "icons/icon128.png" },
   "content_scripts": [

@@ -4,6 +4,7 @@
   "private": true,
   "description": "Extensão MV3 que preenche o rascunho da NFS-e no Emissor Nacional (exportação de serviço).",
   "scripts": {
+    "build": "node scripts/build.mjs",
     "lint": "eslint src scripts",
     "format": "prettier --write \"src/**/*.{js,html}\" \"scripts/**/*.mjs\" manifest.json",
     "format:check": "prettier --check \"src/**/*.{js,html}\" \"scripts/**/*.mjs\" manifest.json"
