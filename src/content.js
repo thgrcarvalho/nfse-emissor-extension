@@ -182,11 +182,21 @@ async function buildProfileFromNota(template) {
   // Tomador variant, inferred from how the Visualizar page renders it: no Tomador
   // section → não informado; a CPF/CNPJ row → Brasil; otherwise exterior (the
   // address line carries "País …"). NIF and contato are read when shown, '' when not.
+  // Heading drift fails loud: a Tomador-ish section under another title must not
+  // silently classify as 'não informado' — local '' is refused at fill time and
+  // named in the missing report.
   const hasTomador = !!map[SEC.tomador];
+  const tomadorishKey = hasTomador ? '' : Object.keys(map).find((k) => /tomador/i.test(k)) || '';
   const tomInscricao =
     first(SEC.tomador, 'CPF/CNPJ') || first(SEC.tomador, 'CNPJ') || first(SEC.tomador, 'CPF');
-  const tomLocal = !hasTomador ? 'nao_informado' : tomInscricao ? 'brasil' : 'exterior';
+  const tomLocal = tomadorishKey ? '' : !hasTomador ? 'nao_informado' : tomInscricao ? 'brasil' : 'exterior';
   const nifValor = first(SEC.tomador, 'NIF');
+  // Same fail-loud for the NIF: an unrecognized NIF-ish row (other than the motivo
+  // row) must warn instead of silently parsing as 'NIF não informado'.
+  const nifishKey = nifValor
+    ? ''
+    : Object.keys(map[SEC.tomador] || {}).find((k) => k !== 'NIF' && /NIF/i.test(k) && !/motivo/i.test(k)) ||
+      '';
 
   if (!template) {
     throw new Error(
@@ -245,12 +255,17 @@ async function buildProfileFromNota(template) {
     tributosTipo = '4';
   } else if (ttSec) {
     tributos = { federal: ttFind(/federa/i), estadual: ttFind(/estadua/i), municipal: ttFind(/municipa/i) };
-    if (tributos.federal || tributos.estadual || tributos.municipal) {
-      tributosTipo = ttKeys.some((k) => /percentual/i.test(k)) ? '2' : '1';
+    const enteKeys = ttKeys.filter((k) => /federa|estadua|municipa/i.test(k));
+    if (enteKeys.length) {
+      // 1 (valores) vs 2 (percentuais) decided by the rows' own wording; wording
+      // that says neither falls to '' — refused at fill time, named in `missing`.
+      const pct = enteKeys.some((k) => /percentual|%/i.test(k));
+      const val = enteKeys.some((k) => /valor|r\$/i.test(k));
+      tributosTipo = pct ? '2' : val ? '1' : '';
     } else {
       tributosTipo = '';
-      tributos = undefined;
     }
+    if (!tributosTipo) tributos = undefined;
   }
 
   const razaoSocial = first(SEC.emitente, 'Razão Social');
@@ -324,7 +339,9 @@ async function buildProfileFromNota(template) {
     ['Moeda', profile.servico.comercio_exterior.moeda],
     ['Situação PIS/COFINS', profile.tributacao.pis_situacao],
     ['Retenção PIS/COFINS', profile.tributacao.pis_retencao],
-    // Total dos tributos requirements follow the inferred tipo ('3' requires nothing).
+    // Total dos tributos requirements follow the inferred tipo ('3' requires nothing,
+    // but announces itself: an unrecognized/renamed section must not silently flip a
+    // tipo-4 nota to 'não informar').
     ...(tributosTipo === '4' ? [['Alíquota SN', aliquotaSn]] : []),
     ...(tributosTipo === '1' || tributosTipo === '2'
       ? [
@@ -333,7 +350,25 @@ async function buildProfileFromNota(template) {
           ['Tributos municipais', tributos.municipal],
         ]
       : []),
+    ...(tributosTipo === '3' && !ttSec
+      ? [['Total dos tributos (sem seção na nota — perfil ficará como "não informar"; confira)', '']]
+      : []),
     ...(tributosTipo === '' ? [['Total dos tributos (formato não reconhecido)', '']] : []),
+    // ISS devido (motivo fora de imunidade/exportação/não incidência) fails loud at
+    // parse time too — the fill guard refuses it, but the warning belongs here.
+    ...(profile.servico.motivo_nao_tributacao &&
+    !['2', '3', '4'].includes(profile.servico.motivo_nao_tributacao)
+      ? [
+          [
+            `Tributação do ISSQN (código ${profile.servico.motivo_nao_tributacao} — ISS devido não é suportado)`,
+            '',
+          ],
+        ]
+      : []),
+    ...(tomadorishKey
+      ? [[`Tomador (seção "${tomadorishKey}" não reconhecida — variante indeterminada)`, '']]
+      : []),
+    ...(nifishKey ? [[`NIF do tomador (rótulo "${nifishKey}" não reconhecido — confira)`, '']] : []),
     ['Valor (US$)', profile.valor.usd],
   ];
   const missing = required.filter(([, v]) => !v).map(([k]) => k);
@@ -357,7 +392,11 @@ function normalizeProfile(cfg) {
   if (!cfg || !cfg.tomador) return cfg;
   const tom = cfg.tomador;
   if (tom.local == null) tom.local = 'exterior';
-  if (!tom.nif || tom.nif.informado == null) tom.nif = Object.assign({ informado: '0' }, tom.nif);
+  if (!tom.nif || tom.nif.informado == null) {
+    // The flag follows the data: a nif carrying a valor without the flag means
+    // informado — defaulting it to 'não' would declare the opposite of the profile.
+    tom.nif = Object.assign({ informado: tom.nif && tom.nif.valor ? '1' : '0' }, tom.nif);
+  }
   return cfg;
 }
 

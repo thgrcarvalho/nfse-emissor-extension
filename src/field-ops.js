@@ -9,7 +9,7 @@
   const jq = () => window.jQuery || window.$;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  function setText(sel, value) {
+  function setText(sel, value, digitsOnly) {
     const el = document.querySelector(sel);
     if (!el) return { sel, ok: false, err: 'missing' };
     el.disabled = false;
@@ -18,7 +18,12 @@
     for (const type of ['input', 'change', 'blur']) {
       el.dispatchEvent(new Event(type, { bubbles: true }));
     }
-    return { sel, ok: el.value === String(value), got: el.value };
+    // A masked field (telefone, CPF/CNPJ) reformats what was set — the digits are
+    // the value; the punctuation belongs to the page.
+    const ok = digitsOnly
+      ? el.value.replace(/\D/g, '') === String(value).replace(/\D/g, '')
+      : el.value === String(value);
+    return { sel, ok, got: el.value };
   }
 
   // Make sure <select> has the wanted <option> even when the portal would only
@@ -76,7 +81,7 @@
     if (op.value == null) {
       return { sel: op.sel, name: op.name, ok: false, err: 'valor ausente no perfil — confira o cadastro' };
     }
-    if (op.t === 'text' || op.t === 'money') return setText(op.sel, op.value);
+    if (op.t === 'text' || op.t === 'money') return setText(op.sel, op.value, op.digits);
     if (op.t === 'chosen') return setChosen(op.sel, op.value, op.text);
     if (op.t === 'select2') return setSelect2(op.sel, op.value, op.text);
     if (op.t === 'radio') return setRadio(op.name, op.value);
@@ -90,7 +95,9 @@
       return !!(r && r.checked);
     }
     const el = op.sel && document.querySelector(op.sel);
-    return !!(el && el.value === String(op.value));
+    if (!el) return false;
+    if (op.digits) return el.value.replace(/\D/g, '') === String(op.value).replace(/\D/g, '');
+    return el.value === String(op.value);
   }
 
   // Is the next op's target usable yet? (Cascades disable/replace the dependent control.)
@@ -116,6 +123,12 @@
         res = applyOp(op);
       } catch (e) {
         res = { ok: false, err: String((e && e.message) || e) };
+      }
+      if (op.settleMin) {
+        // Unconditional settle: this op triggers a cascade with no DOM-observable
+        // signal (e.g. the cadastro lookup after the tomador CPF/CNPJ), so the
+        // waitAfter poll below would exit immediately — sleep the calibrated minimum.
+        await sleep(op.settleMin);
       }
       if (op.waitAfter) {
         // op.waitAfter is the calibrated worst-case settle time for the AJAX cascade

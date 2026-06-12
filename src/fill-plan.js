@@ -47,7 +47,10 @@
             t: 'text',
             sel: '#Tomador_Inscricao',
             value: tom.inscricao,
-            waitAfter: 600,
+            digits: true, // campo mascarado: vale o dígito, não a pontuação
+            // settleMin (não waitAfter): a consulta ao cadastro não tem sinal
+            // observável no DOM — o poll do waitAfter sairia na hora.
+            settleMin: 600,
             label: 'CPF/CNPJ do tomador',
           },
         );
@@ -141,7 +144,13 @@
 
       // Contato (Brasil e exterior): campos opcionais do portal — só entram com valor.
       if (tom.telefone) {
-        ops.push({ t: 'text', sel: '#Tomador_Telefone', value: tom.telefone, label: 'Telefone do tomador' });
+        ops.push({
+          t: 'text',
+          sel: '#Tomador_Telefone',
+          value: tom.telefone,
+          digits: true, // o portal aplica máscara de telefone ao que for digitado
+          label: 'Telefone do tomador',
+        });
       }
       if (tom.email) {
         ops.push({ t: 'text', sel: '#Tomador_Email', value: tom.email, label: 'E-mail do tomador' });

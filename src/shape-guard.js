@@ -84,9 +84,23 @@
             'input[name="ServicoPrestado.HaExportacaoImunidadeNaoIncidencia"][value="1"]',
             'opção de exportação/não incidência',
           ],
+          ['#ComercioExterior_TipoMoeda', 'campos do comércio exterior (moeda)'],
         ],
       },
-      dimensions: [],
+      dimensions: [
+        // O plano sempre marca exportação=Sim e escolhe o motivo no select — um perfil
+        // de ISS devido (motivo fora de 2/3/4, ex.: nota tributável) precisa ser
+        // recusado ANTES de qualquer campo, não falhar no meio da página.
+        {
+          label: 'tributação do ISSQN (motivo)',
+          path: ['servico', 'motivo_nao_tributacao'],
+          variants: {
+            2: { cfg: [], controls: [] }, // Imunidade
+            3: { cfg: [], controls: [] }, // Exportação de serviço
+            4: { cfg: [], controls: [] }, // Não incidência
+          },
+        },
+      ],
     },
     valores: {
       common: {
@@ -101,6 +115,17 @@
         ],
       },
       dimensions: [
+        // A página 3 do ISS devido é renderizada pelo servidor num formato nunca
+        // mapeado — recusar o perfil aqui também, não só na página 2.
+        {
+          label: 'tributação do ISSQN (motivo)',
+          path: ['servico', 'motivo_nao_tributacao'],
+          variants: {
+            2: { cfg: [], controls: [] },
+            3: { cfg: [], controls: [] },
+            4: { cfg: [], controls: [] },
+          },
+        },
         {
           label: 'tipo do valor dos tributos',
           path: ['tributacao', 'valor_tributos_tipo'],
@@ -178,9 +203,12 @@
         problems.push('perfil sem o campo ' + dim.path.join('.'));
         continue;
       }
-      const variant = dim.variants[String(value)];
+      // hasOwnProperty: um discriminante corrompido ("constructor") não pode resolver
+      // para um membro herdado de Object.prototype — recusa limpa, nunca TypeError.
+      const key = String(value);
+      const variant = Object.prototype.hasOwnProperty.call(dim.variants, key) ? dim.variants[key] : null;
       if (!variant) {
-        problems.push(dim.label + ' "' + String(value) + '" não é suportado');
+        problems.push(dim.label + ' "' + key + '" não é suportado');
         continue;
       }
       check(variant);
