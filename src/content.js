@@ -30,6 +30,19 @@ function isLoggedIn() {
   return false;
 }
 
+// The portal prints its own release ("Versão 1.6.0.0") on every page, login included.
+// The panel compares it with the version this extension was validated against and
+// warns on any difference. → "1.6.0.0" | null when the indicator can't be found.
+function readPortalVersion() {
+  const txt = document.body ? document.body.innerText : '';
+  // Last match wins: the release indicator is the page footer, and user-typed text
+  // higher up (a nota's own description can say "versão 2.3") must not shadow it.
+  // 3+ segments required so a bare "versão 2" never qualifies.
+  let v = null;
+  for (const m of txt.matchAll(/Vers[ãa]o\s+(\d+(?:\.\d+){2,})/gi)) v = m[1];
+  return v;
+}
+
 // Reads the logged-in identity from the navbar profile dropdown (present on every
 // logged-in page): razão social + CNPJ. → { nome, cnpj } | null.
 function readIdentity() {
@@ -318,7 +331,12 @@ async function resolveFill(override, bundled) {
 
 ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === 'detect') {
-    sendResponse({ pageId: detectPage(), loggedIn: isLoggedIn(), identity: readIdentity() });
+    sendResponse({
+      pageId: detectPage(),
+      loggedIn: isLoggedIn(),
+      identity: readIdentity(),
+      portalVersion: readPortalVersion(),
+    });
     return false;
   }
   if (msg.action === 'resolveFill') {

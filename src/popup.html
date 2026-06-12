@@ -243,11 +243,30 @@
       .delprof:hover {
         background: #fbeef0;
       }
+      .warnbar:empty {
+        display: none;
+      }
+      .warnbar {
+        font-size: 12px;
+        background: #fff8e6;
+        border: 1px solid #e6c200;
+        color: #6b5400;
+        border-radius: 4px;
+        padding: 6px 8px;
+        margin: 0 0 10px;
+        white-space: pre-wrap;
+      }
+      .versionline {
+        margin-top: 14px;
+        font-size: 10px;
+        color: #aaa;
+      }
     </style>
   </head>
   <body>
     <h1>Preencher NFS-e</h1>
     <div class="ident" id="identity" style="display: none"></div>
+    <div class="warnbar" id="portalWarn" role="status" aria-live="polite"></div>
     <div class="profinfo" id="profileInfo" style="display: none"></div>
 
     <div id="needPerms" style="display: none">
@@ -390,6 +409,8 @@
         <strong>Emitir</strong> você mesmo.
       </div>
     </div>
+
+    <div class="versionline" id="versionLine"></div>
 
     <script src="rate.js"></script>
     <script src="popup.js"></script>

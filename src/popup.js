@@ -355,6 +355,44 @@ async function askContentState(tabId, retries = [350, 1100]) {
   }
 }
 
+// The portal version everything in this release was reverse-engineered and
+// live-validated against (parser sections, wizard field ids, cascades). Shown in the
+// panel footer; any live mismatch raises the banner below.
+const SUPPORTED_PORTAL_VERSION = '1.6.0.0';
+
+function cmpVersion(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+// state = the content script's detect response (null when the page is unreachable).
+// The banner element stays in the DOM (CSS hides it when empty) so aria-live
+// announcements work like the other status regions.
+function renderPortalBanner(state) {
+  const el = $('portalWarn');
+  const v = state && state.portalVersion;
+  if (!state) {
+    el.textContent = '';
+  } else if (!v) {
+    el.textContent =
+      '⚠ Não consegui identificar a versão do portal — o layout pode ter mudado. ' +
+      'Se preencher, confira cada campo com atenção redobrada.';
+  } else if (cmpVersion(v, SUPPORTED_PORTAL_VERSION) !== 0) {
+    const rel = cmpVersion(v, SUPPORTED_PORTAL_VERSION) > 0 ? 'mais nova' : 'mais antiga';
+    el.textContent =
+      `⚠ O portal está na versão ${v}, ${rel} que a validada por esta extensão ` +
+      `(${SUPPORTED_PORTAL_VERSION}). O assistente pode ter mudado — confira cada campo ` +
+      'preenchido antes de avançar.';
+  } else {
+    el.textContent = '';
+  }
+}
+
 async function refreshView() {
   const gen = ++viewGen; // a newer refresh supersedes this one after any await
   if (!(await hasHostPermission())) {
@@ -362,6 +400,7 @@ async function refreshView() {
     $('profileInfo').style.display = 'none';
     $('permsStatus').textContent = '';
     setIdentity(null);
+    $('portalWarn').textContent = '';
     showView('needPerms');
     return;
   }
@@ -373,11 +412,13 @@ async function refreshView() {
   $('profileInfo').style.display = 'none'; // hidden by default; shown only when logged in below
   if (!tab || !isPortalUrl(tab.url)) {
     setIdentity(null);
+    $('portalWarn').textContent = '';
     showView('wrongSite');
     return;
   }
   const state = await askContentState(tab.id);
   if (gen !== viewGen) return;
+  renderPortalBanner(state); // version mismatch warns on every view, login included
   if (!state) {
     // Content script unreachable (page mid-load, or the extension was reloaded under an
     // open tab) — say so instead of pretending to know the login state.
@@ -777,6 +818,7 @@ $('fill').addEventListener('click', async () => {
     // Re-read the LIVE identity right before filling: the panel's USD belongs to
     // runCnpj, and the tab may have switched clients since the last render.
     const live = await askContentState(tab.id, []);
+    renderPortalBanner(live); // a portal update since the last render must not warn stale
     const liveCnpj = onlyDigits(live && live.identity && live.identity.cnpj);
     if (!liveCnpj || liveCnpj !== runCnpj) {
       status.className = 'bad';
@@ -887,6 +929,7 @@ if (ext.permissions && ext.permissions.onAdded) {
 }
 
 async function init() {
+  $('versionLine').textContent = `Validada com o Emissor Nacional v${SUPPORTED_PORTAL_VERSION}`;
   setCompetencia(todayBR());
   try {
     bundledConfig = await fetch(ext.runtime.getURL('src/config.default.json')).then((r) => r.json());
