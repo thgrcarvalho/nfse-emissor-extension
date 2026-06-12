@@ -279,6 +279,19 @@ async function buildProfileFromNota(template) {
 }
 
 // ---- fill -------------------------------------------------------------------------
+// Single migration point: profiles saved before the variant fields existed get the
+// discriminants that reproduce their original behavior — tomador no exterior, NIF
+// não informado. Runs on every profile right before it leaves content.js for the
+// shape guard + fill plan, so stored profiles never need rewriting. A profile
+// without `tomador` at all is left as-is for the guard to refuse.
+function normalizeProfile(cfg) {
+  if (!cfg || !cfg.tomador) return cfg;
+  const tom = cfg.tomador;
+  if (tom.local == null) tom.local = 'exterior';
+  if (!tom.nif || tom.nif.informado == null) tom.nif = Object.assign({ informado: '0' }, tom.nif);
+  return cfg;
+}
+
 async function resolveProfile(bundled) {
   const cnpj = onlyDigits(readIdentity()?.cnpj);
   if (!cnpj) return null; // unknown client → no profile, ever (no wildcard fallback)
@@ -326,7 +339,7 @@ async function resolveFill(override, bundled) {
       msg: `Nenhum perfil cadastrado para o CNPJ logado${id ? ` (${id.cnpj})` : ''}.`,
     };
   }
-  return { ok: true, pageId, cfg };
+  return { ok: true, pageId, cfg: normalizeProfile(cfg) };
 }
 
 ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
