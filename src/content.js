@@ -391,6 +391,7 @@ async function buildProfileFromNota(template) {
     ['Tributação do ISSQN', profile.servico.motivo_nao_tributacao],
     ['Descrição', profile.servico.descricao],
     ['NBS', profile.servico.nbs.value && profile.servico.nbs.text],
+    ['País do resultado', profile.servico.pais_resultado],
     ['Moeda', profile.servico.comercio_exterior.moeda],
     ['Situação PIS/COFINS', profile.tributacao.pis_situacao],
     ['Retenção PIS/COFINS', profile.tributacao.pis_retencao],
