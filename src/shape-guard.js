@@ -66,6 +66,74 @@
             },
           },
         },
+        // Intermediário: terceira pessoa opcional da página, espelha as dimensões do
+        // tomador. O padrão é 'nao_informado' (a opção value=0 do rádio, presente de
+        // saída) — perfis anteriores ao campo o recebem do normalizeProfile, então a
+        // dimensão nunca recusa um perfil sem intermediário.
+        {
+          label: 'domicílio do intermediário',
+          path: ['intermediario', 'local'],
+          variants: {
+            nao_informado: {
+              cfg: [],
+              controls: [
+                [
+                  'input[name="Intermediario.LocalDomicilio"][value="0"]',
+                  'opção de intermediário não informado',
+                ],
+              ],
+            },
+            brasil: {
+              cfg: [
+                ['intermediario', 'inscricao'],
+                ['intermediario', 'nome'],
+              ],
+              controls: [
+                ['input[name="Intermediario.LocalDomicilio"][value="1"]', 'opção de intermediário no Brasil'],
+              ],
+            },
+            exterior: {
+              cfg: [
+                ['intermediario', 'nome'],
+                ['intermediario', 'endereco_exterior'],
+              ],
+              controls: [
+                [
+                  'input[name="Intermediario.LocalDomicilio"][value="2"]',
+                  'opção de intermediário no exterior',
+                ],
+              ],
+            },
+          },
+        },
+        {
+          label: 'NIF do intermediário',
+          // Como no tomador, o grupo NIF pertence ao ramo exterior (o portal limpa a
+          // escolha de NIF quando o domicílio muda — a confirmar em homologação para o
+          // intermediário, espelhando o tomador).
+          applies: (cfg) => get(cfg, ['intermediario', 'local']) === 'exterior',
+          path: ['intermediario', 'nif', 'informado'],
+          variants: {
+            0: {
+              cfg: [['page1', 'intermediario_motivo_nif']],
+              controls: [
+                [
+                  'input[name="Intermediario.NIFInformado"][value="0"]',
+                  'opção de NIF do intermediário não informado',
+                ],
+              ],
+            },
+            1: {
+              cfg: [['intermediario', 'nif', 'valor']],
+              controls: [
+                [
+                  'input[name="Intermediario.NIFInformado"][value="1"]',
+                  'opção de NIF do intermediário informado',
+                ],
+              ],
+            },
+          },
+        },
       ],
     },
     servico: {

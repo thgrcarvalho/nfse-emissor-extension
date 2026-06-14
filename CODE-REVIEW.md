@@ -307,6 +307,43 @@ fetching `runtime.getURL`.
     validation + honest skip reporting, dirty-wizard isolation, post-failure draft
     cleanup, WAF-status checks on Avançar).
 
+**Phase B — intermediário variant — 2026-06-14:**
+21. ✅ Intermediário (terceira pessoa opcional da página 1) — espelha a arquitetura de
+    variantes do tomador. Discriminantes `intermediario.local`
+    (nao_informado/brasil/exterior) e `intermediario.nif.informado`; `normalizeProfile`
+    default-a `nao_informado` (migração sem reescrever perfis — todo perfil anterior
+    reproduz o comportamento de hoje, sem intermediário). Guarda: duas dimensões novas em
+    `pessoas` (domicílio + NIF só-exterior), recusando discriminante desconhecido e campo
+    faltando, Object.prototype-safe como as do tomador. Fill-plan: ops após o
+    tomador/contato — Brasil consulta o cadastro (settleMin 600, sem tocar
+    `InformarEndereco`) e exterior preenche o grupo NIF + o endereço estrangeiro; o
+    early-return do tomador "não informado" foi removido para o intermediário ainda
+    entrar. Parser: infere a variante da seção `/intermedi/i` do Visualizar (ausente →
+    nao_informado), com requisitos e avisos por variante (país fora dos EUA e rótulo de
+    NIF não reconhecido entram no relatório de campos faltando, como no tomador).
+    Validação em Produção Restrita: `validate-variants` 9/9 (3 novas + regressão das 6 da
+    Fase A, com aceite do servidor em cada Avançar — o portal ACEITA tomador exterior +
+    intermediário exterior/Brasil/NIF na mesma nota); round-trip (emissão + releitura
+    pelo parser) verde nas 3 variantes do intermediário — exterior, NIF e Brasil. O
+    Brasil passou na 3ª tentativa, após o cadastro RFB voltar (as 2 primeiras falharam
+    com o mesmo erro transitório do item 20, "Não foi possível recuperar informações do
+    contribuinte"); a nota releu local=brasil, CPF/CNPJ, o nome auto-preenchido pelo
+    cadastro ("BANCO DO BRASIL SA"), telefone e e-mail — todos conferem. Limite portal a
+    confirmar: o CPF/CNPJ do intermediário provavelmente não pode ser igual ao do
+    emitente (como já vale para o tomador).
+22. ✅ Revisão adversarial (workflow multiagente, cada achado verificado de forma
+    independente — 6 achados, 1 refutado, 5 corrigidos): (a) [regressão] o early-return
+    removido deixava um tomador "não informado" com telefone/e-mail avulsos escrever em
+    `#Tomador_Telefone/Email` ocultos — o contato do tomador passou a ser barrado para
+    "não informado"; (b) o intermediário no exterior herdava o país 'US' do template sem
+    o aviso de divergência que o tomador tem — espelhado; (c) o NIF do intermediário não
+    tinha o aviso de rótulo-fora-do-padrão do tomador — espelhado. Núcleo fail-closed
+    re-verificado (poluição de prototype barrada nas dimensões novas, cfg faltando recusa
+    a página inteira antes de preencher, espelhos `normalizeProfile` content.js/lib.mjs
+    idênticos, ops com valor ausente falham fechado em vez de escrever "undefined"). 1
+    refutado: suposta lacuna de cabeçalho de seção — o tomador tem o mesmo comportamento,
+    e o match `/intermedi/i` é mais robusto que um rótulo exato ainda não confirmado.
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout
@@ -316,6 +353,5 @@ controls and profile fields, not the *absence* of extra ones (a richer-but-compa
 page variant still fills — portal validation and the human review cover it); tipo 1/2
 profiles cannot be onboarded from an emitted nota (the Visualizar renders both
 identically — by portal design, refused with an explicit warning); ISS devido,
-imunidade, não incidência, retenções, intermediário, obra e evento remain out of
-scope (page 3 of the ISS-devido variant is server-rendered and unmapped — see the
-wizard map for Phase B).
+imunidade, não incidência, retenções, obra e evento remain out of scope (page 3 of the
+ISS-devido variant is server-rendered and unmapped — see the wizard map for Phase B).
