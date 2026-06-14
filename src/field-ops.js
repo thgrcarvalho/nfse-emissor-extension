@@ -81,6 +81,21 @@
     if (op.value == null) {
       return { sel: op.sel, name: op.name, ok: false, err: 'valor ausente no perfil — confira o cadastro' };
     }
+    // money/chosen/select2 values are never legitimately blank (unlike optional text
+    // fields like telefone/complemento, which use ''); money must also be numeric. An
+    // empty string would otherwise be written and report ok ('' === '') — a silent
+    // partial fill of a required field. Fail closed, the same way the null guard does.
+    if (op.t === 'money' || op.t === 'chosen' || op.t === 'select2') {
+      const s = String(op.value).trim();
+      if (s === '' || (op.t === 'money' && !/[0-9]/.test(s))) {
+        return {
+          sel: op.sel,
+          name: op.name,
+          ok: false,
+          err: 'valor ausente/inválido no perfil — confira o cadastro',
+        };
+      }
+    }
     if (op.t === 'text' || op.t === 'money') return setText(op.sel, op.value, op.digits);
     if (op.t === 'chosen') return setChosen(op.sel, op.value, op.text);
     if (op.t === 'select2') return setSelect2(op.sel, op.value, op.text);

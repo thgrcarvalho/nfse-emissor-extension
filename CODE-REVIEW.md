@@ -381,6 +381,33 @@ fetching `runtime.getURL`.
     REAL** (extensão MV3 carregada, `test-extension-ui.mjs`) 18/18 — rótulos, EUR auto, MXN
     manual, JPY passa a faixa e câmbio 60 é barrado.
 
+**Teste final pré-lançamento — 2026-06-14:**
+25. Revisão adversarial de TODO o caminho de preenchimento (5 dimensões — parser, fill-plan,
+    engine, painel, consistência entre arquivos; 15 agentes, cada achado verificado contra o
+    código-fonte) + teste AO VIVO completo na Produção Restrita. **Preenchimento: 9/9 variantes
+    OK** (cada página com 0 ops falhas e ACEITA pelo servidor — exterior-contato/nif-sim
+    16·17·5, nao-informado 4·17·5, brasil 8·17·5, tipo-1/2 16·17·7, intermediário 26/24/18·17·5)
+    + **10/10 recusas da guarda** (imunidade, não-incidência, ISS devido, tipo 3, discriminantes
+    desconhecidos, NIF sem valor). **Round-trip emitir+reparse: 8/9** — todos os discriminantes
+    e valores voltam da nota emitida, lidos pelo content.js real. A 9ª (intermediario-brasil)
+    falhou no Avançar com "Não foi possível recuperar informações do contribuinte" — confirmado
+    como **indisponibilidade do RFB no portal**, não bug: a MESMA variante preencheu 18/18 no
+    validate minutos antes, e o controle tomador-brasil (mesmo CNPJ do BB) resolveu "BANCO DO
+    BRASIL SA" às 22:43 e passou a falhar idêntico às 22:49 — o portal voltou a recusar a
+    consulta ao cadastro; a extensão preenche o CNPJ certo e SUPERFICIA a recusa do portal
+    (fail-closed correto). **2 bugs reais corrigidos (ambos fail-open de baixa severidade):**
+    (a) `field-ops.applyOp` só falhava fechado em null/undefined — um STRING vazio em op
+    `money`/`chosen`/`select2` (campo monetário/de seleção nunca é legitimamente vazio, ao
+    contrário de texto opcional como telefone/complemento) era escrito em branco e reportado
+    `ok` ('' === ''): preenchimento parcial silencioso (atingia tributos por ente dos tipos 1/2
+    montados à mão e o `pais_resultado`); agora `money`/`chosen`/`select2` recusam vazio (e
+    `money` exige dígito). (b) `servico.pais_resultado` (op `chosen` sempre aplicada, vinda do
+    template) não constava do aviso de onboarding — entrou no `required[]`. Regressão: 3
+    variantes independentes do RFB revalidadas AO VIVO com o engine corrigido (mesmas contagens
+    de ops) + tabela-verdade da guarda (money ''/'  '/'abc' → recusa, '50,00'/'0,00' → passa;
+    chosen/select2 '' → recusa, 'US'/'840'/'0' → passa; text '' → passa). Lint/format/build
+    verdes.
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout
