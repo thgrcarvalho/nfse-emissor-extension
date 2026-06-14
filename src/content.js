@@ -222,7 +222,8 @@ async function buildProfileFromNota(template) {
   if (tomLocal !== 'nao_informado') {
     tomador.nome = first(SEC.tomador, 'Nome/Razão Social');
     tomador.telefone = first(SEC.tomador, 'Telefone');
-    tomador.email = first(SEC.tomador, 'E-mail');
+    // The emitted nota labels it "Email" (no hyphen — staging-verified); accept both.
+    tomador.email = first(SEC.tomador, 'Email') || first(SEC.tomador, 'E-mail');
   }
   if (tomLocal === 'brasil') {
     tomador.inscricao = tomInscricao;
@@ -234,11 +235,12 @@ async function buildProfileFromNota(template) {
     });
   }
 
-  // Tipo do total dos tributos, inferred from how the Visualizar section presents it:
-  // alíquota do SN → '4'; percentuais por ente → '2'; valores por ente → '1'; seção
-  // ausente → '3' (não informado). The per-ente labels were not probed — they are
-  // matched loosely by ente name, and an unrecognizable section parses as tipo ''
-  // (the fill guard refuses it; the missing-fields report names it).
+  // Tipo do total dos tributos, inferred from how the Visualizar section presents
+  // it: alíquota do SN → '4'; seção ausente → '3'. Per-ente rows are staging-
+  // verified to render identically (bare Federal/Estadual/Municipal, unmarked
+  // values) for tipos 1 AND 2 — indistinguishable, so they parse as '' (refused at
+  // fill time) unless a future portal version words the labels (the pct/val checks
+  // below would then start classifying again).
   const ttSec = map[SEC.totalTributos];
   const ttKeys = ttSec ? Object.keys(ttSec) : [];
   const ttFind = (re) => {
@@ -251,14 +253,14 @@ async function buildProfileFromNota(template) {
   );
   let tributosTipo = '3';
   let tributos;
+  let tributosPorEnte = false; // '' came from indistinguishable per-ente rows (vs a section we couldn't read)
   if (aliquotaSn) {
     tributosTipo = '4';
   } else if (ttSec) {
     tributos = { federal: ttFind(/federa/i), estadual: ttFind(/estadua/i), municipal: ttFind(/municipa/i) };
     const enteKeys = ttKeys.filter((k) => /federa|estadua|municipa/i.test(k));
     if (enteKeys.length) {
-      // 1 (valores) vs 2 (percentuais) decided by the rows' own wording; wording
-      // that says neither falls to '' — refused at fill time, named in `missing`.
+      tributosPorEnte = true;
       const pct = enteKeys.some((k) => /percentual|%/i.test(k));
       const val = enteKeys.some((k) => /valor|r\$/i.test(k));
       tributosTipo = pct ? '2' : val ? '1' : '';
@@ -351,16 +353,30 @@ async function buildProfileFromNota(template) {
         ]
       : []),
     ...(tributosTipo === '3' && !ttSec
-      ? [['Total dos tributos (sem seção na nota — perfil ficará como "não informar"; confira)', '']]
-      : []),
-    ...(tributosTipo === '' ? [['Total dos tributos (formato não reconhecido)', '']] : []),
-    // ISS devido (motivo fora de imunidade/exportação/não incidência) fails loud at
-    // parse time too — the fill guard refuses it, but the warning belongs here.
-    ...(profile.servico.motivo_nao_tributacao &&
-    !['2', '3', '4'].includes(profile.servico.motivo_nao_tributacao)
       ? [
           [
-            `Tributação do ISSQN (código ${profile.servico.motivo_nao_tributacao} — ISS devido não é suportado)`,
+            'Total dos tributos (sem seção na nota — "não informar" não vale para ME/EPP, a página Valores não será preenchida)',
+            '',
+          ],
+        ]
+      : []),
+    ...(tributosTipo === ''
+      ? [
+          [
+            tributosPorEnte
+              ? 'Total dos tributos (a nota não distingue valores de percentuais por ente — perfis dos tipos 1/2 só por configuração manual)'
+              : 'Total dos tributos (formato não reconhecido — a seção mudou?)',
+            '',
+          ],
+        ]
+      : []),
+    // Only exportação (3) is fillable — ISS devido, imunidade (needs TipoImunidade)
+    // and não-incidência (CTN-dependent, portal modal) are refused by the fill guard;
+    // warn here at onboarding time, where the user can still pick another nota.
+    ...(profile.servico.motivo_nao_tributacao && profile.servico.motivo_nao_tributacao !== '3'
+      ? [
+          [
+            `Tributação do ISSQN (código ${profile.servico.motivo_nao_tributacao} — apenas exportação de serviço é suportada)`,
             '',
           ],
         ]

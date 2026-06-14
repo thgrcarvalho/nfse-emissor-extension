@@ -279,16 +279,43 @@ fetching `runtime.getURL`.
     carries a valor to informado='1'. Re-validated after the changes: full 7-variant
     staging suite + 35/35 regression + load-from-nota — all green.
 
+**Phase A verification round — staging emission round-trip — 2026-06-12:**
+20. ✅ Closed the parse-side loop the adversarial review flagged: every supported
+    variant was EMITTED for real on Produção Restrita (Emitir = `#btnProsseguir`;
+    no captcha on staging) and the emitted nota parsed back by the real content.js
+    (`roundtrip-variants.mjs`, skill dir). Round-trips green: exterior+contato,
+    NIF informado (label "NIF" confirmed), não informado (section truly absent),
+    Brasil ("CPF/CNPJ" + "Nome/Razão Social" + contato confirmed; masked values
+    digits-compared). Label fix: the nota says "Email", not "E-mail" (parser accepts
+    both). Portal rules learned and encoded as guard refusals: motivo 2 (imunidade)
+    needs `TipoImunidade` (never filled) and motivo 4 (não incidência) is
+    CTN-dependent — the wizard pops a blocking modal and reverts the select — so
+    only motivo 3 (exportação) passes the guard; tipo 3 ("não informar" o total dos
+    tributos) is accepted as draft but REFUSED at emission for ME/EPP — removed from
+    the supported variants. By-design parser refusal: the emitted nota renders tipos
+    1 e 2 as identical bare "Federal/Estadual/Municipal" rows (unmarked values) —
+    indistinguishable, so onboarding-from-nota parses tipo '' (refused + warned);
+    tipo 1/2 profiles are config-built only (fill side remains staging-validated).
+    Transient staging note: the RFB tomador lookup intermittently fails ("Não foi
+    possível recuperar informações do contribuinte") — the portal rejects page 1
+    then; retry works. A second adversarial review over this round (17 confirmed
+    findings, all fixed) added: fill-plan now fails closed itself for unsupported
+    motivo/tipo (defense-in-depth under the guard); the tipo-'' onboarding warning
+    distinguishes "indistinguishable per-ente rows" from "unrecognized section";
+    guard-refusal unit tests cover every empirically-refused discriminant (motivo
+    1/2/4, tipo 3/''); harness hardening (PII-masked output, --parse-latest
+    validation + honest skip reporting, dirty-wizard isolation, post-failure draft
+    cleanup, WAF-status checks on Avançar).
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout
 injection could overlap a re-fill on a stuck page; chave-gerador município code when
 prestação ≠ company seat; the shape guard asserts the *presence* of supported-shape
 controls and profile fields, not the *absence* of extra ones (a richer-but-compatible
-page variant still fills — portal validation and the human review cover it); the
-Visualizar labels of a tomador-Brasil nota and of tipo-1/2 "Total dos tributos"
-sections were not probed against a real emitted nota of those shapes — the parser
-matches them loosely (CPF/CNPJ-ish labels, ente-name regexes) and anything unread
-lands in the missing-fields warning or is refused at fill time; ISS devido, retenções,
-intermediário, obra e evento remain out of scope (page 3 of the ISS-devido variant is
-server-rendered and unmapped — see the wizard map for Phase B).
+page variant still fills — portal validation and the human review cover it); tipo 1/2
+profiles cannot be onboarded from an emitted nota (the Visualizar renders both
+identically — by portal design, refused with an explicit warning); ISS devido,
+imunidade, não incidência, retenções, intermediário, obra e evento remain out of
+scope (page 3 of the ISS-devido variant is server-rendered and unmapped — see the
+wizard map for Phase B).

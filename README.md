@@ -38,20 +38,25 @@ Como roda dentro do **seu navegador, já logado**, não esbarra nas defesas do p
 A extensão preenche a nota de **exportação de serviço** (ISS não incidente,
 LC 116/2003, art. 2º, I) de emitente ME/EPP no **Simples Nacional**, nas variantes
 do assistente abaixo — todas validadas de ponta a ponta na **Produção Restrita**
-(ambiente de homologação do portal), inclusive a aceitação de cada página pelo
-servidor:
+(ambiente de homologação do portal): cada página aceita pelo servidor, notas de
+teste **emitidas de verdade** e relidas pelo próprio painel:
 
 - Tomador **no exterior** (com endereço), **no Brasil** (CPF/CNPJ — o portal busca o
   cadastro e completa nome e endereço sozinho) ou **não informado**;
 - **NIF** informado ou não informado (tomador no exterior);
 - Telefone e e-mail do tomador (opcionais);
-- Total dos tributos por **alíquota do Simples Nacional**, por **valores por ente**,
-  por **percentuais por ente** ou **não informado**;
+- Total dos tributos por **alíquota do Simples Nacional**, por **valores por ente**
+  ou por **percentuais por ente** ("não informar" não existe para ME/EPP — o portal
+  recusa a emissão);
 - Valor do serviço em **US$**, convertido pela PTAX do Banco Central.
 
 Os campos de variante do perfil são criados automaticamente ao carregar de uma nota
 emitida; perfis salvos por versões anteriores continuam valendo (migração
-automática, sem ação do usuário).
+automática, sem ação do usuário). Exceções: perfis com tributos **por ente**
+(valores ou percentuais) só podem ser criados editando a configuração — a
+Visualização da nota não distingue um do outro, e a extensão não adivinha; e um
+perfil que por acaso traga "não informar" passa a ser recusado, porque o próprio
+portal rejeita a emissão de ME/EPP com esse indicador.
 
 Quando a página ou o perfil não casam com uma variante reconhecida, a extensão
 **se recusa a preencher a página inteira** (guarda de formato: nada é preenchido
@@ -60,7 +65,8 @@ não são detectadas pela guarda — a conferência antes de emitir continua
 indispensável.
 
 Continuam **fora do escopo** (o painel avisa e nada é preenchido): ISS devido
-(serviço não exportado), retenções de ISSQN, intermediário de serviço, obra e
+(serviço não exportado), **imunidade e não incidência** (somente o motivo
+"exportação" é suportado), retenções de ISSQN, intermediário de serviço, obra e
 evento.
 
 **Versão do portal validada: Emissor Nacional 1.6.0.0.** O portal exibe a versão em
@@ -155,8 +161,9 @@ onboarding by parsing a previously emitted invoice, automatic BCB PTAX exchange 
 It fills the 3-page wizard; the human always reviews and clicks Emitir. Credential-free:
 it operates on the already-logged-in tab, and all data stays in local browser storage.
 Scope (see _Escopo suportado_): the export-of-service invoice in its validated wizard
-variants — tomador abroad/in Brazil/not informed, NIF, contact fields, four "total dos
-tributos" modes — enforced by a fill-time guard that refuses whole pages outside it;
+variants — tomador abroad/in Brazil/not informed, NIF, contact fields, three "total dos
+tributos" modes ("not informed" is rejected by the portal itself for ME/EPP emitters) —
+enforced by a fill-time guard that refuses whole pages outside it;
 validated against Emissor Nacional 1.6.0.0 (each variant server-accepted on the
 portal's staging), with an in-panel warning when the live portal version differs.
 

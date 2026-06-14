@@ -88,16 +88,17 @@
         ],
       },
       dimensions: [
-        // O plano sempre marca exportação=Sim e escolhe o motivo no select — um perfil
-        // de ISS devido (motivo fora de 2/3/4, ex.: nota tributável) precisa ser
-        // recusado ANTES de qualquer campo, não falhar no meio da página.
+        // O plano sempre marca exportação=Sim e escolhe o motivo no select — qualquer
+        // motivo não suportado precisa ser recusado ANTES de qualquer campo, não
+        // falhar no meio da página. Só a exportação (3) é suportada: imunidade (2)
+        // exige o TipoImunidade (nunca preenchido) e não-incidência (4) depende do
+        // CTN — o portal abre um modal bloqueante e reverte a escolha (verificado
+        // em homologação).
         {
           label: 'tributação do ISSQN (motivo)',
           path: ['servico', 'motivo_nao_tributacao'],
           variants: {
-            2: { cfg: [], controls: [] }, // Imunidade
             3: { cfg: [], controls: [] }, // Exportação de serviço
-            4: { cfg: [], controls: [] }, // Não incidência
           },
         },
       ],
@@ -121,9 +122,7 @@
           label: 'tributação do ISSQN (motivo)',
           path: ['servico', 'motivo_nao_tributacao'],
           variants: {
-            2: { cfg: [], controls: [] },
             3: { cfg: [], controls: [] },
-            4: { cfg: [], controls: [] },
           },
         },
         {
@@ -156,15 +155,10 @@
                 ],
               ],
             },
-            3: {
-              cfg: [],
-              controls: [
-                [
-                  'input[name="ValorTributos.TipoValorTributos"][value="3"]',
-                  'opção de não informar os tributos',
-                ],
-              ],
-            },
+            // Sem variante 3 ("não informar"): a emissão é recusada pelo portal para
+            // ME/EPP ("o indicador de informação de valor total de tributos não pode
+            // ser informado" — verificado em homologação). O assistente até aceita o
+            // rascunho; a recusa só aparece no Emitir — melhor barrar aqui.
             4: {
               cfg: [['tributacao', 'aliquota_sn']],
               controls: [
