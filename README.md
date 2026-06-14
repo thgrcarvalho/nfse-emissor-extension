@@ -45,6 +45,9 @@ teste **emitidas de verdade** e relidas pelo próprio painel:
   cadastro e completa nome e endereço sozinho) ou **não informado**;
 - **NIF** informado ou não informado (tomador no exterior);
 - Telefone e e-mail do tomador (opcionais);
+- **Intermediário do serviço** (opcional): no exterior (com endereço), no Brasil
+  (CPF/CNPJ — busca de cadastro) ou não informado, com NIF e contato — espelhando o
+  tomador;
 - Total dos tributos por **alíquota do Simples Nacional**, por **valores por ente**
   ou por **percentuais por ente** ("não informar" não existe para ME/EPP — o portal
   recusa a emissão);
@@ -66,8 +69,7 @@ indispensável.
 
 Continuam **fora do escopo** (o painel avisa e nada é preenchido): ISS devido
 (serviço não exportado), **imunidade e não incidência** (somente o motivo
-"exportação" é suportado), retenções de ISSQN, intermediário de serviço, obra e
-evento.
+"exportação" é suportado), retenções de ISSQN, obra e evento.
 
 **Versão do portal validada: Emissor Nacional 1.6.0.0.** O portal exibe a versão em
 todas as páginas; quando ela for diferente da validada — ou não puder ser lida — o
@@ -161,8 +163,9 @@ onboarding by parsing a previously emitted invoice, automatic BCB PTAX exchange 
 It fills the 3-page wizard; the human always reviews and clicks Emitir. Credential-free:
 it operates on the already-logged-in tab, and all data stays in local browser storage.
 Scope (see _Escopo suportado_): the export-of-service invoice in its validated wizard
-variants — tomador abroad/in Brazil/not informed, NIF, contact fields, three "total dos
-tributos" modes ("not informed" is rejected by the portal itself for ME/EPP emitters) —
+variants — tomador abroad/in Brazil/not informed, NIF, contact fields, an optional
+service intermediary (same shapes as the tomador), three "total dos tributos" modes
+("not informed" is rejected by the portal itself for ME/EPP emitters) —
 enforced by a fill-time guard that refuses whole pages outside it;
 validated against Emissor Nacional 1.6.0.0 (each variant server-accepted on the
 portal's staging), with an in-panel warning when the live portal version differs.
