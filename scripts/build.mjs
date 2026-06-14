@@ -21,9 +21,13 @@ function stage(name, patch) {
   const dir = path.join(dist, name);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
-  // Only the icon the manifest references — not the SVG source or the Edge store logo.
+  // Only the icons the manifest references (16/32/48/128) — not the SVG source nor
+  // the 300px Edge store logo (uploaded in the dashboard, never bundled).
   fs.mkdirSync(path.join(dir, 'icons'));
-  fs.copyFileSync(path.join(root, 'icons', 'icon128.png'), path.join(dir, 'icons', 'icon128.png'));
+  for (const f of fs.readdirSync(path.join(root, 'icons'))) {
+    if (!/^icon\d+\.png$/.test(f) || f === 'icon300.png') continue;
+    fs.copyFileSync(path.join(root, 'icons', f), path.join(dir, 'icons', f));
+  }
   for (const f of fs.readdirSync(path.join(root, 'src'))) {
     if (f === 'config.default.json' || f === 'config.example.json') continue;
     fs.copyFileSync(path.join(root, 'src', f), path.join(dir, 'src', f));
