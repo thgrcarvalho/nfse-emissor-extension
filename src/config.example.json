@@ -3,7 +3,8 @@
   "cnpj": "00.000.000/0001-00",
   "page1": {
     "regime_sn": "1",
-    "tomador_motivo_nif": "2"
+    "tomador_motivo_nif": "2",
+    "intermediario_motivo_nif": "2"
   },
   "tomador": {
     "local": "exterior",
@@ -22,6 +23,7 @@
       "pais_codigo": "US"
     }
   },
+  "intermediario": { "local": "nao_informado", "nif": { "informado": "0" } },
   "servico": {
     "municipio": { "value": "3304557", "text": "Rio de Janeiro/RJ" },
     "ctn": { "value": "14.02.01", "text": "14.02.01 - Assistência técnica." },

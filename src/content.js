@@ -235,6 +235,43 @@ async function buildProfileFromNota(template) {
     });
   }
 
+  // Intermediário (opcional): inferido da seção do Visualizar cujo título casa /intermedi/i.
+  // Ausente → nao_informado (o caso comum). Mesma lógica do tomador: linha CPF/CNPJ →
+  // Brasil, senão exterior; NIF e contato lidos quando presentes, '' quando não. Só os
+  // campos da variante inferida entram (um intermediário Brasil nunca carrega endereço
+  // exterior meio-lido). O país do exterior vem do template ('US'), como no tomador.
+  const interSecKey = Object.keys(map).find((k) => /intermedi/i.test(k)) || '';
+  const interMap = interSecKey ? map[interSecKey] : null;
+  const interFirst = (k) => (interMap && interMap[k] && interMap[k][0]) || '';
+  const interInscricao = interFirst('CPF/CNPJ') || interFirst('CNPJ') || interFirst('CPF');
+  const interNif = interFirst('NIF');
+  // Mesma proteção do tomador: um rótulo de NIF que mudou (fora a linha do motivo)
+  // avisa em vez de classificar silenciosamente como 'NIF não informado'.
+  const interNifishKey =
+    interNif || !interMap
+      ? ''
+      : Object.keys(interMap).find((k) => k !== 'NIF' && /NIF/i.test(k) && !/motivo/i.test(k)) || '';
+  const interLocal = !interMap ? 'nao_informado' : interInscricao ? 'brasil' : 'exterior';
+  const intermediario = {
+    local: interLocal,
+    nif: interNif ? { informado: '1', valor: interNif } : { informado: '0' },
+  };
+  if (interLocal !== 'nao_informado') {
+    intermediario.nome = interFirst('Nome/Razão Social');
+    intermediario.telefone = interFirst('Telefone');
+    intermediario.email = interFirst('Email') || interFirst('E-mail');
+  }
+  if (interLocal === 'brasil') {
+    intermediario.inscricao = interInscricao;
+    intermediario.inscricao_municipal = interFirst('Inscrição Municipal');
+  }
+  if (interLocal === 'exterior') {
+    intermediario.endereco_exterior = Object.assign(
+      parseExterior(interFirst('Endereço do Estabelecimento/Domicílio')),
+      { pais_codigo: t('intermediario.endereco_exterior.pais_codigo') },
+    );
+  }
+
   // Tipo do total dos tributos, inferred from how the Visualizar section presents
   // it: alíquota do SN → '4'; seção ausente → '3'. Per-ente rows are staging-
   // verified to render identically (bare Federal/Estadual/Municipal, unmarked
@@ -278,8 +315,10 @@ async function buildProfileFromNota(template) {
     page1: {
       regime_sn: t('page1.regime_sn'),
       tomador_motivo_nif: t('page1.tomador_motivo_nif'),
+      intermediario_motivo_nif: t('page1.intermediario_motivo_nif'),
     },
     tomador,
+    intermediario,
     servico: {
       // text = local da prestação (Serviço Prestado panel); value = the chave's
       // município gerador code — same municipality whenever the service is rendered
@@ -329,6 +368,20 @@ async function buildProfileFromNota(template) {
           ['Cidade do tomador', tomador.endereco_exterior.cidade],
           ['CEP/postal do tomador', tomador.endereco_exterior.cep],
           ['Estado do tomador', tomador.endereco_exterior.estado],
+        ]
+      : []),
+    // Intermediário (opcional): requisitos seguem a variante inferida — nao_informado
+    // não exige nada (o caso comum).
+    ...(interLocal !== 'nao_informado' ? [['Nome do intermediário', intermediario.nome]] : []),
+    ...(interLocal === 'brasil' ? [['CPF/CNPJ do intermediário', intermediario.inscricao]] : []),
+    ...(interLocal === 'exterior'
+      ? [
+          ['Endereço do intermediário', intermediario.endereco_exterior.logradouro],
+          ['Número do endereço (intermediário)', intermediario.endereco_exterior.numero],
+          ['Bairro do intermediário', intermediario.endereco_exterior.bairro],
+          ['Cidade do intermediário', intermediario.endereco_exterior.cidade],
+          ['CEP/postal do intermediário', intermediario.endereco_exterior.cep],
+          ['Estado do intermediário', intermediario.endereco_exterior.estado],
         ]
       : []),
     ['Município da prestação', profile.servico.municipio.value && profile.servico.municipio.text],
@@ -385,6 +438,9 @@ async function buildProfileFromNota(template) {
       ? [[`Tomador (seção "${tomadorishKey}" não reconhecida — variante indeterminada)`, '']]
       : []),
     ...(nifishKey ? [[`NIF do tomador (rótulo "${nifishKey}" não reconhecido — confira)`, '']] : []),
+    ...(interNifishKey
+      ? [[`NIF do intermediário (rótulo "${interNifishKey}" não reconhecido — confira)`, '']]
+      : []),
     ['Valor (US$)', profile.valor.usd],
   ];
   const missing = required.filter(([, v]) => !v).map(([k]) => k);
@@ -393,6 +449,14 @@ async function buildProfileFromNota(template) {
   const paisNome = tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : '';
   if (paisNome && !/estados unidos/i.test(paisNome)) {
     missing.push(`País do tomador (a nota indica "${paisNome}", mas o perfil usará EUA — confira)`);
+  }
+  // Mesmo cuidado para o intermediário no exterior: o código do país vem do template
+  // ('US'); avisar quando a nota mostra um país que não parece os EUA.
+  const interPaisNome = interLocal === 'exterior' ? intermediario.endereco_exterior.pais_nome : '';
+  if (interPaisNome && !/estados unidos/i.test(interPaisNome)) {
+    missing.push(
+      `País do intermediário (a nota indica "${interPaisNome}", mas o perfil usará EUA — confira)`,
+    );
   }
 
   return { profile, emitente: { cnpj, nome: razaoSocial }, chave, missing };
@@ -412,6 +476,17 @@ function normalizeProfile(cfg) {
     // The flag follows the data: a nif carrying a valor without the flag means
     // informado — defaulting it to 'não' would declare the opposite of the profile.
     tom.nif = Object.assign({ informado: tom.nif && tom.nif.valor ? '1' : '0' }, tom.nif);
+  }
+  // Intermediário is optional: a profile without it predates the field → no
+  // intermediário (the radio's value 0). Saved profiles never need rewriting.
+  const itm = cfg.intermediario;
+  if (!itm) {
+    cfg.intermediario = { local: 'nao_informado', nif: { informado: '0' } };
+  } else {
+    if (itm.local == null) itm.local = 'nao_informado';
+    if (!itm.nif || itm.nif.informado == null) {
+      itm.nif = Object.assign({ informado: itm.nif && itm.nif.valor ? '1' : '0' }, itm.nif);
+    }
   }
   return cfg;
 }

@@ -326,6 +326,13 @@ function setProfileInfo(profile, source, withValor = false) {
   const tomador =
     (profile.tomador && profile.tomador.nome) ||
     (profile.tomador && profile.tomador.local === 'nao_informado' ? 'não informado' : '');
+  // Intermediário (opcional): aparece no resumo só quando o perfil traz um — a
+  // conferência antes de emitir precisa enxergar a terceira pessoa da nota.
+  const itm = profile.intermediario;
+  const intermediario =
+    itm && itm.local && itm.local !== 'nao_informado'
+      ? itm.nome || (itm.local === 'brasil' ? 'no Brasil' : 'no exterior')
+      : '';
   el.className = 'profinfo' + (source === 'session' ? ' temp' : '');
   // A use-once override can be dropped manually (auto-clears at the review screen too).
   const revert =
@@ -338,7 +345,7 @@ function setProfileInfo(profile, source, withValor = false) {
   const valorStr = withValor && usd ? ` · Valor: US$ ${fmtUsd(usd)}` : '';
   el.innerHTML =
     `<div>Dados: <strong>${escapeHtml(profile.label || 'Perfil')}</strong> — <span class="src">${escapeHtml(srcText)}</span></div>` +
-    `<div class="k">Tomador: ${escapeHtml(tomador)} · ${escapeHtml(mun)}${aliq ? ` · Alíquota SN: ${escapeHtml(aliq)}%` : ''}${valorStr}</div>` +
+    `<div class="k">Tomador: ${escapeHtml(tomador)}${intermediario ? ` · Interm.: ${escapeHtml(intermediario)}` : ''} · ${escapeHtml(mun)}${aliq ? ` · Alíquota SN: ${escapeHtml(aliq)}%` : ''}${valorStr}</div>` +
     revert;
   el.style.display = '';
 }

@@ -8,6 +8,162 @@
   const brl = (n) =>
     Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Intermediário (opcional): espelha o tomador com os ids Intermediario_*. Sempre
+  // entra DEPOIS do tomador/contato — a seção do intermediário fica abaixo na página.
+  // 'nao_informado' é só o rádio value=0 (estado padrão da página); Brasil consulta o
+  // cadastro e auto-preenche nome/endereço (nunca tocamos InformarEndereco, como no
+  // tomador); exterior tem o grupo NIF e o endereço estrangeiro.
+  function pushIntermediario(ops, cfg) {
+    const itm = cfg.intermediario;
+    if (!itm || itm.local === 'nao_informado') {
+      ops.push({
+        t: 'radio',
+        name: 'Intermediario.LocalDomicilio',
+        value: '0',
+        label: 'Domicílio do intermediário (Não informado)',
+      });
+      return;
+    }
+
+    if (itm.local === 'brasil') {
+      ops.push(
+        {
+          t: 'radio',
+          name: 'Intermediario.LocalDomicilio',
+          value: '1',
+          waitAfter: 400,
+          label: 'Domicílio do intermediário (Brasil)',
+        },
+        {
+          t: 'text',
+          sel: '#Intermediario_Inscricao',
+          value: itm.inscricao,
+          digits: true,
+          settleMin: 600, // consulta ao cadastro, sem sinal observável no DOM (igual ao tomador)
+          label: 'CPF/CNPJ do intermediário',
+        },
+      );
+      if (itm.inscricao_municipal) {
+        ops.push({
+          t: 'text',
+          sel: '#Intermediario_InscricaoMunicipal',
+          value: itm.inscricao_municipal,
+          label: 'Inscrição municipal do intermediário',
+        });
+      }
+      ops.push({ t: 'text', sel: '#Intermediario_Nome', value: itm.nome, label: 'Nome do intermediário' });
+    }
+
+    if (itm.local === 'exterior') {
+      const e = itm.endereco_exterior;
+      const nifInformado = String((itm.nif && itm.nif.informado) || '0') === '1';
+      ops.push(
+        {
+          t: 'radio',
+          name: 'Intermediario.LocalDomicilio',
+          value: '2',
+          label: 'Domicílio do intermediário (Exterior)',
+        },
+        ...(nifInformado
+          ? [
+              {
+                t: 'radio',
+                name: 'Intermediario.NIFInformado',
+                value: '1',
+                waitAfter: 300,
+                label: 'NIF do intermediário informado (Sim)',
+              },
+              { t: 'text', sel: '#Intermediario_NIF', value: itm.nif.valor, label: 'NIF do intermediário' },
+            ]
+          : [
+              {
+                t: 'radio',
+                name: 'Intermediario.NIFInformado',
+                value: '0',
+                waitAfter: 300,
+                label: 'NIF do intermediário informado (Não)',
+              },
+              {
+                t: 'chosen',
+                sel: '#Intermediario_MotivoNaoInformacaoNIF',
+                value: cfg.page1.intermediario_motivo_nif,
+                label: 'Motivo de não informar o NIF do intermediário',
+              },
+            ]),
+        { t: 'text', sel: '#Intermediario_Nome', value: itm.nome, label: 'Nome do intermediário' },
+        {
+          t: 'text',
+          sel: '#Intermediario_EnderecoExterior_Logradouro',
+          value: e.logradouro,
+          label: 'Logradouro (intermediário)',
+        },
+        {
+          t: 'text',
+          sel: '#Intermediario_EnderecoExterior_Numero',
+          value: e.numero,
+          label: 'Número (intermediário)',
+        },
+        {
+          t: 'text',
+          sel: '#Intermediario_EnderecoExterior_Bairro',
+          value: e.bairro,
+          label: 'Bairro (intermediário)',
+        },
+        {
+          t: 'text',
+          sel: '#Intermediario_EnderecoExterior_Cidade',
+          value: e.cidade,
+          label: 'Cidade (intermediário)',
+        },
+        {
+          t: 'text',
+          sel: '#Intermediario_EnderecoExterior_CodigoEnderecamentoPostal',
+          value: e.cep,
+          label: 'Endereço postal (intermediário)',
+        },
+        {
+          t: 'text',
+          sel: '#Intermediario_EnderecoExterior_EstadoProvinciaRegiao',
+          value: e.estado,
+          label: 'Estado/região (intermediário)',
+        },
+        {
+          t: 'chosen',
+          sel: '#Intermediario_EnderecoExterior_CodigoPais',
+          value: e.pais_codigo,
+          label: 'País (intermediário)',
+        },
+      );
+      if (e.complemento) {
+        ops.push({
+          t: 'text',
+          sel: '#Intermediario_EnderecoExterior_Complemento',
+          value: e.complemento,
+          label: 'Complemento (intermediário)',
+        });
+      }
+    }
+
+    // Contato do intermediário (Brasil e exterior): opcionais — só entram com valor.
+    if (itm.telefone) {
+      ops.push({
+        t: 'text',
+        sel: '#Intermediario_Telefone',
+        value: itm.telefone,
+        digits: true, // o portal aplica máscara de telefone
+        label: 'Telefone do intermediário',
+      });
+    }
+    if (itm.email) {
+      ops.push({
+        t: 'text',
+        sel: '#Intermediario_Email',
+        value: itm.email,
+        label: 'E-mail do intermediário',
+      });
+    }
+  }
+
   window.__nfseFillPlan = function (pageId, cfg, state) {
     if (pageId === 'pessoas') {
       const tom = cfg.tomador;
@@ -22,13 +178,13 @@
       ];
 
       if (tom.local === 'nao_informado') {
+        // só o rádio — não há seção do tomador; o fluxo segue para o intermediário.
         ops.push({
           t: 'radio',
           name: 'Tomador.LocalDomicilio',
           value: '0',
           label: 'Domicílio do tomador (Não informado)',
         });
-        return ops; // no tomador section at all — the radio is the whole branch
       }
 
       if (tom.local === 'brasil') {
@@ -142,19 +298,25 @@
         }
       }
 
-      // Contato (Brasil e exterior): campos opcionais do portal — só entram com valor.
-      if (tom.telefone) {
-        ops.push({
-          t: 'text',
-          sel: '#Tomador_Telefone',
-          value: tom.telefone,
-          digits: true, // o portal aplica máscara de telefone ao que for digitado
-          label: 'Telefone do tomador',
-        });
+      // Contato do tomador (Brasil e exterior): campos opcionais — NUNCA para 'não
+      // informado', que não tem seção de tomador (a guarda não declara esses controles;
+      // escrevê-los acertaria um campo oculto/ausente da nota sem tomador).
+      if (tom.local !== 'nao_informado') {
+        if (tom.telefone) {
+          ops.push({
+            t: 'text',
+            sel: '#Tomador_Telefone',
+            value: tom.telefone,
+            digits: true, // o portal aplica máscara de telefone ao que for digitado
+            label: 'Telefone do tomador',
+          });
+        }
+        if (tom.email) {
+          ops.push({ t: 'text', sel: '#Tomador_Email', value: tom.email, label: 'E-mail do tomador' });
+        }
       }
-      if (tom.email) {
-        ops.push({ t: 'text', sel: '#Tomador_Email', value: tom.email, label: 'E-mail do tomador' });
-      }
+
+      pushIntermediario(ops, cfg);
       return ops;
     }
 
