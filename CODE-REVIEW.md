@@ -344,6 +344,25 @@ fetching `runtime.getURL`.
     refutado: suposta lacuna de cabeçalho de seção — o tomador tem o mesmo comportamento,
     e o match `/intermedi/i` é mais robusto que um rótulo exato ainda não confirmado.
 
+**v0.3 extras — 2026-06-14:**
+23. ✅ Competência padrão = **último dia do mês anterior** (a competência usual da nota
+    mensal — `defaultCompetenciaBR`, só no init, sobrescrevível pelo campo/seletor).
+    Exportar/importar perfis (backup JSON): exportar baixa todos os perfis salvos (ação
+    deliberada — o arquivo carrega dados de cliente, avisado na UI); importar faz
+    read-merge-write em `storage.local`. A caixa de clientes salvos passou a ficar sempre
+    visível no painel, para o import funcionar num navegador novo. Revisão adversarial
+    (1 achado HIGH corrigido): o import agora chaveia ESTRITAMENTE pelo `cnpj` do próprio
+    perfil, nunca pela chave do arquivo — um arquivo adulterado poderia arquivar os dados
+    do cliente B sob a chave do cliente A e, como `resolveProfile` retorna
+    `profiles[cnpjLogado]`, preencher o cliente errado (violação da trava de identidade);
+    defesa em profundidade: `resolveProfile` passou a exigir `onlyDigits(profile.cnpj) ===
+    chave` antes de retornar. Lint/format/build verdes + sanidade offline; **verificado
+    em NAVEGADOR REAL** via Playwright carregando a extensão MV3 (harness do skill
+    `test-extension-ui.mjs`): competência padrão (31/05 em 14/06), exportar (baixa o JSON
+    com os perfis), importar válido (adiciona pelo CNPJ) e importar adulterado — a trava
+    de identidade arquiva sob o `cnpj` do perfil (99…), nunca a chave do arquivo (111…) —
+    9/9 verdes.
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout

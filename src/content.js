@@ -496,7 +496,11 @@ async function resolveProfile(bundled) {
   if (!cnpj) return null; // unknown client → no profile, ever (no wildcard fallback)
   try {
     const { profiles } = await ext.storage.local.get('profiles');
-    if (profiles && profiles[cnpj]) return profiles[cnpj];
+    // Defense in depth: the stored profile's own CNPJ must match the key it sits under.
+    // An imported/corrupt file could file client B's data under client A's key — if the
+    // two disagree, treat it as no match and never fill another client's data.
+    const found = profiles && profiles[cnpj];
+    if (found && onlyDigits(found.cnpj) === cnpj) return found;
   } catch {}
   if (bundled && onlyDigits(bundled.cnpj) === cnpj) return bundled;
   return null;

@@ -102,8 +102,13 @@ async function clearSessionProfile(cnpj) {
   } catch {}
 }
 
-function todayBR() {
-  const d = new Date();
+// Default competência for the monthly nota: the LAST DAY OF THE PRIOR MONTH — the
+// service is invoiced the month after, so this is the usual competência. `new Date(y, m,
+// 0)` is day 0 of the current month = the last day of the month before it (handles the
+// January→December year rollover). The user can still override the field or the picker.
+function defaultCompetenciaBR() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), 0);
   const p = (n) => String(n).padStart(2, '0');
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
@@ -520,23 +525,107 @@ function renderProfileList(loggedCnpj) {
   const keys = Object.keys(storedProfiles).sort((a, b) =>
     String(storedProfiles[a].label || '').localeCompare(String(storedProfiles[b].label || '')),
   );
-  if (!keys.length) {
-    box.style.display = 'none';
-    return;
-  }
-  $('profilesList').innerHTML = keys
-    .map((k) => {
-      const p = storedProfiles[k];
-      const logged = k === loggedCnpj ? ' <span class="logged">· logado</span>' : '';
-      return (
-        `<div class="profrow"><span>${escapeHtml(p.label || 'Cliente')} ` +
-        `<span class="cnpj">${escapeHtml(p.cnpj || k)}</span>${logged}</span>` +
-        `<button type="button" class="delprof" data-cnpj="${escapeHtml(k)}" title="Excluir os dados salvos deste cliente" aria-label="Excluir ${escapeHtml(p.label || 'cliente')}">🗑</button></div>`
-      );
-    })
-    .join('');
+  $('profilesList').innerHTML = keys.length
+    ? keys
+        .map((k) => {
+          const p = storedProfiles[k];
+          const logged = k === loggedCnpj ? ' <span class="logged">· logado</span>' : '';
+          return (
+            `<div class="profrow"><span>${escapeHtml(p.label || 'Cliente')} ` +
+            `<span class="cnpj">${escapeHtml(p.cnpj || k)}</span>${logged}</span>` +
+            `<button type="button" class="delprof" data-cnpj="${escapeHtml(k)}" title="Excluir os dados salvos deste cliente" aria-label="Excluir ${escapeHtml(p.label || 'cliente')}">🗑</button></div>`
+          );
+        })
+        .join('')
+    : '<p class="hint">Nenhum cliente salvo ainda.</p>';
+  // Export only makes sense with profiles; import works even on an empty browser (restore
+  // a backup), so the box stays visible on the dashboard regardless.
+  $('exportProfiles').style.display = keys.length ? '' : 'none';
   box.style.display = '';
 }
+
+// Profile backup. Export writes all saved profiles to a JSON file — a deliberate user
+// action; the file carries client data. Import merges such a file back into storage
+// (read-merge-write, keyed by CNPJ digits). An imported profile is still identity-locked:
+// it only ever fills a nota whose logged-in CNPJ matches it (resolveFill is unchanged).
+function setProfilesMsg(text, bad = false) {
+  const el = $('profilesMsg');
+  el.textContent = text;
+  el.classList.toggle('bad', bad);
+}
+function exportProfiles() {
+  const keys = Object.keys(storedProfiles);
+  if (!keys.length) {
+    setProfilesMsg('Nenhum perfil para exportar.', true);
+    return;
+  }
+  const payload = { kind: 'nfse-emissor-profiles', version: 1, profiles: storedProfiles };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `nfse-perfis-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  setProfilesMsg(`${keys.length} perfil(is) exportado(s).`);
+}
+async function importProfiles(file) {
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    setProfilesMsg('Arquivo inválido — não é um JSON.', true);
+    return;
+  }
+  // Accept the exported envelope { profiles: {...} } or a bare profiles map.
+  const incoming =
+    data && typeof data === 'object' && data.profiles && typeof data.profiles === 'object'
+      ? data.profiles
+      : data && typeof data === 'object'
+        ? data
+        : null;
+  if (!incoming) {
+    setProfilesMsg('O arquivo não contém perfis.', true);
+    return;
+  }
+  let current = storedProfiles;
+  try {
+    current = (await ext.storage.local.get('profiles')).profiles || {};
+  } catch {}
+  let added = 0;
+  let replaced = 0;
+  for (const p of Object.values(incoming)) {
+    if (!p || typeof p !== 'object') continue;
+    // Identity-lock: key STRICTLY by the profile's own CNPJ, never the file's map key.
+    // resolveProfile returns profiles[loggedCnpj], so a file that filed client B's data
+    // under client A's key would otherwise fill the wrong client. Digit-only also drops
+    // any __proto__-style key. Skip rows without a usable CNPJ.
+    const key = onlyDigits(p.cnpj);
+    if (!key) continue;
+    if (current[key]) replaced++;
+    else added++;
+    current[key] = p;
+  }
+  if (!added && !replaced) {
+    setProfilesMsg('Nenhum perfil válido no arquivo.', true);
+    return;
+  }
+  await ext.storage.local.set({ profiles: current });
+  storedProfiles = current;
+  setProfilesMsg(
+    replaced ? `${added} adicionado(s), ${replaced} substituído(s).` : `${added} perfil(is) importado(s).`,
+  );
+  await refreshView();
+}
+$('exportProfiles').addEventListener('click', exportProfiles);
+$('importProfiles').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // let the same file be re-imported
+  if (file) await importProfiles(file);
+});
 
 let delArmTimer = null;
 $('profilesList').addEventListener('click', async (e) => {
@@ -939,7 +1028,7 @@ if (ext.permissions && ext.permissions.onAdded) {
 
 async function init() {
   $('versionLine').textContent = `Validada com o Emissor Nacional v${SUPPORTED_PORTAL_VERSION}`;
-  setCompetencia(todayBR());
+  setCompetencia(defaultCompetenciaBR());
   try {
     bundledConfig = await fetch(ext.runtime.getURL('src/config.default.json')).then((r) => r.json());
   } catch {
