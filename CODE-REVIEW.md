@@ -363,6 +363,24 @@ fetching `runtime.getURL`.
     de identidade arquiva sob o `cnpj` do perfil (99…), nunca a chave do arquivo (111…) —
     9/9 verdes.
 
+**v0.3 multi-moeda — 2026-06-14:**
+24. ✅ Multi-moeda no câmbio: `rate.js` parametriza a moeda (era USD fixo; valida o símbolo
+    `/^[A-Z]{3}$/` antes da URL OData). O painel descobre a moeda do perfil
+    (`comercio_exterior.moeda`, código ISO numérico) e busca a PTAX da moeda certa. A PTAX
+    serve 10 moedas (USD/EUR/GBP/JPY/CHF/CAD/AUD/DKK/NOK/SEK — confirmado na API `Moedas` do
+    BCB); as demais caem em câmbio manual (nota "Sem PTAX"). Os rótulos do valor/banner/lista
+    seguem a moeda; a moeda fica no run state para o câmbio salvo sobreviver ao reload. O
+    preenchimento já era agnóstico (usa o código `moeda` do perfil + o valor estrangeiro).
+    Revisão adversarial (3 dims, cada achado verificado): **1 HIGH corrigido** — a faixa de
+    sanidade do câmbio era `[0.5, 50]` (formato USD) e BLOQUEAVA o JPY (~0,034 BRL/iene, uma
+    das 10 moedas PTAX); virou só `> 50` (sem piso fixo: moedas de baixo valor são legítimas,
+    e um câmbio pequeno demais aparece como valor pequeno na revisão humana obrigatória).
+    2 LOW: o refetch da PTAX na navegação rápida foi debounced (coalesce os onUpdated); um
+    perfil sem `moeda` mantém o seed USD mas é malformado e já falha no fill (TipoMoeda vazio).
+    Validado: `rate.js` busca EUR ao vivo + rejeita símbolo inválido; teste no **NAVEGADOR
+    REAL** (extensão MV3 carregada, `test-extension-ui.mjs`) 18/18 — rótulos, EUR auto, MXN
+    manual, JPY passa a faixa e câmbio 60 é barrado.
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout

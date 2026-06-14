@@ -192,6 +192,7 @@ function saveState() {
         competencia: getCompetenciaBR(),
         usd: $('usd').value,
         cambio: $('cambio').value,
+        moeda: activeCurrency.numeric,
         cnpj: runCnpj,
         source: runSource,
       },
@@ -205,6 +206,55 @@ async function loadState() {
   } catch {
     return null;
   }
+}
+
+// ---- currency (moeda) ---------------------------------------------------------------
+// PTAX serves these 10 currencies daily (auto-câmbio). Keyed by the NFS-e moeda field's
+// ISO-4217 NUMERIC code; alpha = the PTAX/Olinda symbol; symbol = the display label. A
+// moeda code outside this map has no PTAX → manual câmbio.
+const PTAX_CURRENCIES = {
+  840: { alpha: 'USD', symbol: 'US$' },
+  978: { alpha: 'EUR', symbol: '€' },
+  826: { alpha: 'GBP', symbol: '£' },
+  392: { alpha: 'JPY', symbol: '¥' },
+  756: { alpha: 'CHF', symbol: 'CHF' },
+  124: { alpha: 'CAD', symbol: 'CA$' },
+  36: { alpha: 'AUD', symbol: 'AU$' },
+  208: { alpha: 'DKK', symbol: 'DKK' },
+  578: { alpha: 'NOK', symbol: 'NOK' },
+  752: { alpha: 'SEK', symbol: 'SEK' },
+};
+const DEFAULT_CURRENCY = { numeric: '840', alpha: 'USD', symbol: 'US$', ptax: true };
+
+function currencyForCode(code) {
+  // Normalize leading zeros so the ISO code '036' (AUD) matches the map key 36.
+  const norm = String(code || '')
+    .trim()
+    .replace(/^0+(?=\d)/, '');
+  if (!norm) return DEFAULT_CURRENCY;
+  const c = Object.prototype.hasOwnProperty.call(PTAX_CURRENCIES, norm) ? PTAX_CURRENCIES[norm] : null;
+  return c
+    ? { numeric: norm, alpha: c.alpha, symbol: c.symbol, ptax: true }
+    : { numeric: norm, alpha: '', symbol: `moeda ${norm}`, ptax: false };
+}
+const currencyFor = (profile) =>
+  currencyForCode(
+    profile &&
+      profile.servico &&
+      profile.servico.comercio_exterior &&
+      profile.servico.comercio_exterior.moeda,
+  );
+
+let activeCurrency = DEFAULT_CURRENCY;
+const setCurrencyLabel = () => {
+  $('usdCur').textContent = activeCurrency.symbol;
+};
+// Adopt a currency for the form's value/câmbio fields. Returns true when it changed.
+function applyCurrency(cur) {
+  if (cur.numeric === activeCurrency.numeric) return false;
+  activeCurrency = cur;
+  setCurrencyLabel();
+  return true;
 }
 
 // ---- PTAX (câmbio) by competência date --------------------------------------------
@@ -230,19 +280,26 @@ async function refreshRate() {
     info.textContent = comp ? 'Data de competência inválida — use dd/mm/aaaa.' : '';
     return;
   }
+  if (!activeCurrency.ptax) {
+    // No daily PTAX for this currency — the user types the câmbio (estrangeira→BRL).
+    info.className = 'ptax';
+    info.textContent = `Sem PTAX para a moeda ${activeCurrency.numeric} no Banco Central — informe o câmbio manualmente.`;
+    $('refreshRate').disabled = true;
+    return;
+  }
   $('refreshRate').disabled = true;
   info.className = 'ptax';
-  info.textContent = 'Buscando câmbio (PTAX) no Banco Central…';
+  info.textContent = `Buscando câmbio (PTAX ${activeCurrency.alpha}) no Banco Central…`;
   try {
-    const r = await window.fetchPtaxCompra(comp);
+    const r = await window.fetchPtaxCompra(comp, activeCurrency.alpha);
     if (gen !== rateGen) return; // a newer date/fetch superseded this result
     $('cambio').value = fmtRate(r.rate); // pt-BR display ('5,1687'); num() parses it back
     recomputeValor();
     saveState();
     info.className = 'ptax ok';
     info.textContent = r.exact
-      ? `PTAX de fechamento ${r.cotacaoDateBR}: ${fmtRate(r.rate)}`
-      : `Sem fechamento em ${comp}. Usando ${r.cotacaoDateBR}: ${fmtRate(r.rate)}`;
+      ? `PTAX ${activeCurrency.alpha} de fechamento ${r.cotacaoDateBR}: ${fmtRate(r.rate)}`
+      : `Sem fechamento em ${comp}. Usando ${activeCurrency.alpha} ${r.cotacaoDateBR}: ${fmtRate(r.rate)}`;
   } catch (e) {
     if (gen !== rateGen) return;
     info.className = 'ptax bad';
@@ -347,7 +404,7 @@ function setProfileInfo(profile, source, withValor = false) {
   // On the dashboard show the reference value (USD). On the form it's omitted — the editable
   // Valor (US$) field is right there and the per-run amount can differ from the reference.
   const usd = profile.valor && profile.valor.usd;
-  const valorStr = withValor && usd ? ` · Valor: US$ ${fmtUsd(usd)}` : '';
+  const valorStr = withValor && usd ? ` · Valor: ${currencyFor(profile).symbol} ${fmtUsd(usd)}` : '';
   el.innerHTML =
     `<div>Dados: <strong>${escapeHtml(profile.label || 'Perfil')}</strong> — <span class="src">${escapeHtml(srcText)}</span></div>` +
     `<div class="k">Tomador: ${escapeHtml(tomador)}${intermediario ? ` · Interm.: ${escapeHtml(intermediario)}` : ''} · ${escapeHtml(mun)}${aliq ? ` · Alíquota SN: ${escapeHtml(aliq)}%` : ''}${valorStr}</div>` +
@@ -497,8 +554,10 @@ async function refreshView() {
       return;
     }
     setProfileInfo(profile, source);
+    const curChanged = applyCurrency(currencyFor(profile));
+    if (curChanged) invalidateRate(); // the old rate priced the old currency
     if (runCnpj !== loggedCnpj || runSource !== source) {
-      // Different client or different profile than the per-run USD belongs to:
+      // Different client or different profile than the per-run amount belongs to:
       // adopt this profile's reference value instead of carrying a stale amount.
       adoptProfileUsd(loggedCnpj, profile, source);
     } else if (!$('usd').value.trim() && profile.valor && profile.valor.usd) {
@@ -508,6 +567,13 @@ async function refreshView() {
       saveState();
     }
     recomputeValor();
+    // PTAX currencies auto-fetch; others get the manual-câmbio note. Fetch when the
+    // currency just changed or the câmbio is empty; debounced so the several onUpdated
+    // events of one navigation coalesce into a single PTAX request.
+    if (curChanged || !numRate($('cambio').value)) {
+      clearTimeout(rateTimer);
+      rateTimer = setTimeout(refreshRate, 250);
+    }
     showView('form');
     return;
   }
@@ -696,7 +762,7 @@ async function renderNotaView(tabId) {
     row('Município', p.servico && p.servico.municipio ? p.servico.municipio.text : '') +
     row('CTN', p.servico && p.servico.ctn ? p.servico.ctn.value : '') +
     row('Alíquota SN', p.tributacao ? p.tributacao.aliquota_sn : '') +
-    row('USD padrão', p.valor && p.valor.usd ? fmtUsd(p.valor.usd) : '') +
+    row(`Valor padrão (${currencyFor(p).symbol})`, p.valor && p.valor.usd ? fmtUsd(p.valor.usd) : '') +
     row('Descrição', descr.length > 90 ? descr.slice(0, 90) + '…' : descr);
   // Fields the parser couldn't read stay EMPTY (never inherited from another profile) —
   // tell the user before they use or save this as the client's padrão.
@@ -887,7 +953,7 @@ $('fill').addEventListener('click', async () => {
   }
   if (!num($('usd').value)) {
     status.className = 'bad';
-    status.textContent = 'Informe o valor (US$) do serviço.';
+    status.textContent = `Informe o valor (${activeCurrency.symbol}) do serviço.`;
     return;
   }
   const rate = numRate($('cambio').value);
@@ -896,8 +962,10 @@ $('fill').addEventListener('click', async () => {
     status.textContent = 'Informe o câmbio (PTAX) para calcular o valor.';
     return;
   }
-  if (rate < 0.5 || rate > 50) {
-    // No USD/BRL rate looks like this — almost certainly a typo or format slip.
+  if (rate > 50) {
+    // BRL per 1 unit above ~50 isn't any real currency — almost certainly a missing
+    // decimal or format slip. No fixed lower bound: low-value currencies are legit (JPY
+    // ~0,03), and a too-small câmbio shows up as a too-small valor in the human review.
     status.className = 'bad';
     status.textContent = `Câmbio fora do esperado (${fmtRate(rate)}) — confira o valor digitado.`;
     return;
@@ -1042,8 +1110,15 @@ async function init() {
     if (saved.cambio) $('cambio').value = saved.cambio;
     runCnpj = saved.cnpj || null;
     runSource = saved.source || null;
+    // Restore the currency so the first form-view doesn't read a spurious change and
+    // discard a saved câmbio (e.g. a manual rate for a non-PTAX currency).
+    if (saved.moeda) {
+      activeCurrency = currencyForCode(saved.moeda);
+      setCurrencyLabel();
+    }
   }
   recomputeValor();
-  if (!numRate($('cambio').value)) refreshRate();
+  // The form-view branch fetches/notes the câmbio for the active currency; nothing to
+  // fetch when the panel isn't on a wizard page.
   await refreshView();
 }
