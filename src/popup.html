@@ -99,6 +99,15 @@
         font-size: 11px;
         margin-top: 8px;
       }
+      /* Inline glyphs that mirror the portal's toolbar/row icons, so the steps point at
+         what the user actually clicks. Generic shapes only — never the NFSe brand logo. */
+      .pico {
+        width: 1.05em;
+        height: 1.05em;
+        vertical-align: -0.18em;
+        color: #1b6b3a;
+        margin: 0 1px;
+      }
       #wrongSite p {
         margin: 8px 0;
       }
@@ -274,6 +283,39 @@
   </head>
   <body>
     <h1>Preencher NFS-e</h1>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="ic-eye" viewBox="0 0 24 24">
+        <path
+          d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        />
+        <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2" />
+      </symbol>
+      <symbol id="ic-emitidas" viewBox="0 0 24 24">
+        <!-- Mirrors the portal's "NFS-e Emitidas" toolbar icon: a ruled document with a
+             solid up-arrow over the top-right corner. Generic shapes, not the NFSe logo. -->
+        <rect
+          x="3"
+          y="7"
+          width="11"
+          height="14"
+          rx="1.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+        />
+        <path
+          d="M6 11h5M6 14h5M6 17h4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+        <path d="M17.5 2.5 21.5 7.5 19.5 7.5 19.5 13 15.5 13 15.5 7.5 13.5 7.5Z" fill="currentColor" />
+      </symbol>
+    </svg>
     <div class="ident" id="identity" style="display: none"></div>
     <div class="warnbar" id="portalWarn" role="status" aria-live="polite"></div>
     <div class="profinfo" id="profileInfo" style="display: none"></div>
@@ -324,10 +366,21 @@
     </div>
 
     <div id="idle" style="display: none">
-      <p>Você está logado. Inicie a <strong>Emissão completa</strong> para preencher com os dados acima.</p>
+      <p>Você está logado no Emissor Nacional.</p>
       <p class="hint">
-        Para usar ou trocar o cliente de referência, abra uma nota já emitida deste cliente (no portal) e
-        escolha <strong>Usar nesta emissão</strong> ou <strong>Salvar como padrão</strong>.
+        <strong>Já salvou este cliente?</strong> Inicie a <strong>Emissão completa</strong> no portal — o
+        painel preenche cada etapa com os dados acima.<br />
+        <strong>Primeira vez com este cliente?</strong> Na tela inicial, em <em>Últimas NFS-e emitidas</em>,
+        clique no ícone
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="Visualizar"><use href="#ic-eye" /></svg>
+        (Visualizar) de uma nota que você já emitiu e depois em <strong>Salvar como padrão</strong> — você só
+        precisa fazer isso uma vez por cliente.<br />
+        <strong>Nota com mais de 30 dias</strong> não aparece aqui: abra
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="NFS-e Emitidas">
+          <use href="#ic-emitidas" />
+        </svg>
+        <strong>NFS-e Emitidas</strong> (ícone no topo do portal), informe a data e clique em
+        <strong>Filtrar</strong>.
       </p>
       <div id="profilesBox" style="display: none">
         <div class="boxtitle">Clientes salvos neste navegador</div>
@@ -353,10 +406,20 @@
     </div>
 
     <div id="noProfile" style="display: none">
-      <p>Ainda não há um <strong>perfil</strong> para o CNPJ logado.</p>
+      <p>
+        Ainda não há um <strong>perfil salvo</strong> para o CNPJ logado, então o preenchimento fica
+        bloqueado.
+      </p>
       <p class="hint">
-        Abra uma nota já emitida deste cliente (no portal) e escolha <strong>Salvar como padrão</strong> para
-        criar o perfil — assim o preenchimento usa sempre os dados corretos.
+        Volte à tela inicial, em <em>Últimas NFS-e emitidas</em> clique no ícone
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="Visualizar"><use href="#ic-eye" /></svg>
+        (Visualizar) de uma nota que você já emitiu e depois em <strong>Salvar como padrão</strong>. Em
+        seguida, recomece a Emissão completa — o painel preenche sozinho.<br />
+        Nota com mais de 30 dias? Use
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="NFS-e Emitidas">
+          <use href="#ic-emitidas" />
+        </svg>
+        <strong>NFS-e Emitidas</strong> e filtre pela data.
       </p>
     </div>
 
@@ -366,6 +429,11 @@
       <div id="notaMissing" class="hint bad" role="status" aria-live="polite"></div>
       <button id="useNota" type="button">Usar nesta emissão</button>
       <button id="saveNota" type="button" class="ghost">Salvar como padrão deste cliente</button>
+      <p class="hint">
+        <strong>Usar nesta emissão</strong>: preenche a emissão atual com os dados desta nota, só desta
+        vez.<br />
+        <strong>Salvar como padrão</strong>: guarda este cliente para preencher todo mês, sem reabrir a nota.
+      </p>
       <div id="notaStatus" class="hint" role="status" aria-live="polite"></div>
     </div>
 
