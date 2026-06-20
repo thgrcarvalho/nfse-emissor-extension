@@ -324,10 +324,13 @@
     </div>
 
     <div id="idle" style="display: none">
-      <p>Você está logado. Inicie a <strong>Emissão completa</strong> para preencher com os dados acima.</p>
+      <p>Você está logado no Emissor Nacional.</p>
       <p class="hint">
-        Para usar ou trocar o cliente de referência, abra uma nota já emitida deste cliente (no portal) e
-        escolha <strong>Usar nesta emissão</strong> ou <strong>Salvar como padrão</strong>.
+        <strong>Já salvou este cliente?</strong> Inicie a <strong>Emissão completa</strong> no portal — o
+        painel preenche cada etapa com os dados acima.<br />
+        <strong>Primeira vez com este cliente?</strong> Na tela inicial, em <em>Últimas NFS-e emitidas</em>,
+        clique no ícone 👁 (Visualizar) de uma nota que você já emitiu. O painel reconhece a nota e é só
+        clicar em <strong>Salvar como padrão</strong>.
       </p>
       <div id="profilesBox" style="display: none">
         <div class="boxtitle">Clientes salvos neste navegador</div>
@@ -353,10 +356,14 @@
     </div>
 
     <div id="noProfile" style="display: none">
-      <p>Ainda não há um <strong>perfil</strong> para o CNPJ logado.</p>
+      <p>
+        Ainda não há um <strong>perfil salvo</strong> para o CNPJ logado, então o preenchimento fica
+        bloqueado.
+      </p>
       <p class="hint">
-        Abra uma nota já emitida deste cliente (no portal) e escolha <strong>Salvar como padrão</strong> para
-        criar o perfil — assim o preenchimento usa sempre os dados corretos.
+        Volte à tela inicial, em <em>Últimas NFS-e emitidas</em> clique no ícone 👁 (Visualizar) de uma nota
+        que você já emitiu e depois em <strong>Salvar como padrão</strong>. Em seguida, recomece a Emissão
+        completa — o painel preenche sozinho.
       </p>
     </div>
 
@@ -366,6 +373,11 @@
       <div id="notaMissing" class="hint bad" role="status" aria-live="polite"></div>
       <button id="useNota" type="button">Usar nesta emissão</button>
       <button id="saveNota" type="button" class="ghost">Salvar como padrão deste cliente</button>
+      <p class="hint">
+        <strong>Usar nesta emissão</strong>: preenche a emissão atual com os dados desta nota, só desta
+        vez.<br />
+        <strong>Salvar como padrão</strong>: guarda este cliente para preencher todo mês, sem reabrir a nota.
+      </p>
       <div id="notaStatus" class="hint" role="status" aria-live="polite"></div>
     </div>
 
