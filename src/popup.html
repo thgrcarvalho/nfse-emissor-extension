@@ -99,6 +99,15 @@
         font-size: 11px;
         margin-top: 8px;
       }
+      /* Inline glyphs that mirror the portal's toolbar/row icons, so the steps point at
+         what the user actually clicks. Generic shapes only — never the NFSe brand logo. */
+      .pico {
+        width: 1.05em;
+        height: 1.05em;
+        vertical-align: -0.18em;
+        color: #1b6b3a;
+        margin: 0 1px;
+      }
       #wrongSite p {
         margin: 8px 0;
       }
@@ -274,6 +283,35 @@
   </head>
   <body>
     <h1>Preencher NFS-e</h1>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="ic-eye" viewBox="0 0 24 24">
+        <path
+          d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        />
+        <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2" />
+      </symbol>
+      <symbol id="ic-emitidas" viewBox="0 0 24 24">
+        <path
+          d="M6 21h12V8l-5-5H6Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"
+        />
+        <path d="M13 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+        <path
+          d="M12 18.5v-6.5m0 0-2.4 2.4M12 12l2.4 2.4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+    </svg>
     <div class="ident" id="identity" style="display: none"></div>
     <div class="warnbar" id="portalWarn" role="status" aria-live="polite"></div>
     <div class="profinfo" id="profileInfo" style="display: none"></div>
@@ -329,8 +367,16 @@
         <strong>Já salvou este cliente?</strong> Inicie a <strong>Emissão completa</strong> no portal — o
         painel preenche cada etapa com os dados acima.<br />
         <strong>Primeira vez com este cliente?</strong> Na tela inicial, em <em>Últimas NFS-e emitidas</em>,
-        clique no ícone 👁 (Visualizar) de uma nota que você já emitiu. O painel reconhece a nota e é só
-        clicar em <strong>Salvar como padrão</strong>.
+        clique no ícone
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="Visualizar"><use href="#ic-eye" /></svg>
+        (Visualizar) de uma nota que você já emitiu e depois em <strong>Salvar como padrão</strong> — você só
+        precisa fazer isso uma vez por cliente.<br />
+        <strong>Nota com mais de 30 dias</strong> não aparece aqui: abra
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="NFS-e Emitidas">
+          <use href="#ic-emitidas" />
+        </svg>
+        <strong>NFS-e Emitidas</strong> (ícone no topo do portal), informe a data e clique em
+        <strong>Filtrar</strong>.
       </p>
       <div id="profilesBox" style="display: none">
         <div class="boxtitle">Clientes salvos neste navegador</div>
@@ -361,9 +407,15 @@
         bloqueado.
       </p>
       <p class="hint">
-        Volte à tela inicial, em <em>Últimas NFS-e emitidas</em> clique no ícone 👁 (Visualizar) de uma nota
-        que você já emitiu e depois em <strong>Salvar como padrão</strong>. Em seguida, recomece a Emissão
-        completa — o painel preenche sozinho.
+        Volte à tela inicial, em <em>Últimas NFS-e emitidas</em> clique no ícone
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="Visualizar"><use href="#ic-eye" /></svg>
+        (Visualizar) de uma nota que você já emitiu e depois em <strong>Salvar como padrão</strong>. Em
+        seguida, recomece a Emissão completa — o painel preenche sozinho.<br />
+        Nota com mais de 30 dias? Use
+        <svg class="pico" viewBox="0 0 24 24" role="img" aria-label="NFS-e Emitidas">
+          <use href="#ic-emitidas" />
+        </svg>
+        <strong>NFS-e Emitidas</strong> e filtre pela data.
       </p>
     </div>
 
