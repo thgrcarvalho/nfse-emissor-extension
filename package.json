@@ -1,6 +1,6 @@
 {
   "name": "nfse-emissor-extension",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Extensão MV3 que preenche o rascunho da NFS-e no Emissor Nacional (exportação de serviço).",
   "scripts": {

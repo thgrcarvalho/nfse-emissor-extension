@@ -14,6 +14,12 @@ o contador que emite para vários clientes desse perfil — e não aguenta mais 
 Como roda dentro do **seu navegador, já logado**, não esbarra nas defesas do portal
 (WAF, captcha) que derrubariam uma automação externa. E não pede senha nenhuma.
 
+## 🎥 Demonstração
+
+[![NFS-e de exportação: preenchimento automático no Emissor Nacional](https://img.youtube.com/vi/kcj-tuIkcbA/maxresdefault.jpg)](https://www.youtube.com/watch?v=kcj-tuIkcbA)
+
+▶️ **[Veja a extensão preenchendo a nota em ~38 s](https://www.youtube.com/watch?v=kcj-tuIkcbA)** — fluxo completo (Pessoas → Serviço → Valores) na Emissão completa.
+
 ## O que ela faz
 
 - **Painel lateral** (abre pelo ícone na barra) que fica aberto durante toda a emissão.

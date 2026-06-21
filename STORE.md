@@ -18,6 +18,8 @@ conjunto de ícones 16/32/48/128. Nada foi publicado em nenhuma loja ainda.
 > (`scripts/build.mjs`), então não se edita à mão, e os zips saem renomeados com a
 > nova versão. É decisão sua; o resto deste guia vale para a versão que você escolher.
 
+**Vídeo de demonstração (YouTube):** https://www.youtube.com/watch?v=kcj-tuIkcbA — cole no campo **Vídeo** da Chrome Web Store. No Firefox AMO não há campo de vídeo: referencie o link na descrição. (Edge: adicionar quando sair da revisão.)
+
 ---
 
 ## 1. Texto da loja (pt-BR primário + EN)
@@ -25,7 +27,7 @@ conjunto de ícones 16/32/48/128. Nada foi publicado em nenhuma loja ainda.
 ### pt-BR (primário)
 
 **Nome da extensão** (43 caracteres, dentro do limite de 45):
-> NFS-e Nacional — Preenchimento (export EUA)
+> NFS-e Nacional — Preenchimento (exportação)
 
 **Descrição curta / resumo — Chrome / Edge (limite rígido 132):** *(124 caracteres)*
 > Preenche o rascunho da NFS-e de exportação de serviço no Emissor Nacional e calcula o valor em BRL pela cotação PTAX do BCB.
@@ -63,7 +65,7 @@ Política de privacidade: https://github.com/thgrcarvalho/nfse-emissor-extension
 ### EN (secundário)
 
 **Extension name** (43 chars — same product name across locales):
-> NFS-e Nacional — Preenchimento (export EUA)
+> NFS-e Nacional — Preenchimento (exportação)
 
 **Short description — Chrome / Edge (hard limit 132):** *(120 chars)*
 > Fills the service-export NFS-e draft on Brazil's Emissor Nacional and prices it in BRL using the central bank PTAX rate.
