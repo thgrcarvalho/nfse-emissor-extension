@@ -99,6 +99,36 @@
         font-size: 11px;
         margin-top: 8px;
       }
+      #tutoriais {
+        margin-top: 14px;
+      }
+      #tutoriais .boxtitle {
+        font-size: 12px;
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 6px;
+      }
+      a.vidlink {
+        display: block;
+        text-decoration: none;
+        color: #1b6b3a;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 8px;
+        margin-bottom: 5px;
+        background: #eef7f0;
+        border-radius: 4px;
+      }
+      a.vidlink:hover {
+        background: #e2f0e6;
+      }
+      a.vidlink .vidnote {
+        display: block;
+        color: #888;
+        font-size: 11px;
+        font-weight: 400;
+        margin-top: 2px;
+      }
       /* Inline glyphs that mirror the portal's toolbar/row icons, so the steps point at
          what the user actually clicks. Generic shapes only — never the NFSe brand logo. */
       .pico {
@@ -382,6 +412,23 @@
         <strong>NFS-e Emitidas</strong> (ícone no topo do portal), informe a data e clique em
         <strong>Filtrar</strong>.
       </p>
+      <div id="tutoriais">
+        <div class="boxtitle">Como usar — vídeos rápidos</div>
+        <a class="vidlink" href="https://youtu.be/kcj-tuIkcbA" target="_blank" rel="noopener noreferrer">
+          ▶ Visão geral: preenchendo a nota
+          <span class="vidnote">A extensão preenchendo a Emissão completa, do início ao Avançar.</span>
+        </a>
+        <a class="vidlink" href="https://youtu.be/-zgowZmRmVM" target="_blank" rel="noopener noreferrer">
+          ▶ Definir um cliente como padrão
+          <span class="vidnote"
+            >Salvar uma nota emitida como referência fixa — preenche todo mês sozinho.</span
+          >
+        </a>
+        <a class="vidlink" href="https://youtu.be/6htfQzeXIrM" target="_blank" rel="noopener noreferrer">
+          ▶ Usar uma nota só nesta emissão
+          <span class="vidnote">Referência de uso único, sem mexer no cliente padrão.</span>
+        </a>
+      </div>
       <div id="profilesBox" style="display: none">
         <div class="boxtitle">Clientes salvos neste navegador</div>
         <div id="profilesList"></div>
