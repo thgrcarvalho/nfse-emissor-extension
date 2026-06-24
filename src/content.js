@@ -230,9 +230,10 @@ async function buildProfileFromNota(template) {
     tomador.inscricao_municipal = first(SEC.tomador, 'Inscrição Municipal');
   }
   if (tomLocal === 'exterior') {
-    tomador.endereco_exterior = Object.assign(parseExterior(extStr), {
-      pais_codigo: t('tomador.endereco_exterior.pais_codigo'),
-    });
+    // País: guardamos só o NOME lido do endereço ('Estados Unidos da América'); o
+    // resolvedor o mapeia para o código contra a lista de países do próprio portal no
+    // preenchimento — nada de 'US' fixo do template.
+    tomador.endereco_exterior = parseExterior(extStr);
   }
 
   // Intermediário (opcional): inferido da seção do Visualizar cujo título casa /intermedi/i.
@@ -266,10 +267,8 @@ async function buildProfileFromNota(template) {
     intermediario.inscricao_municipal = interFirst('Inscrição Municipal');
   }
   if (interLocal === 'exterior') {
-    intermediario.endereco_exterior = Object.assign(
-      parseExterior(interFirst('Endereço do Estabelecimento/Domicílio')),
-      { pais_codigo: t('intermediario.endereco_exterior.pais_codigo') },
-    );
+    // Como no tomador: só o nome do país, resolvido contra o portal no preenchimento.
+    intermediario.endereco_exterior = parseExterior(interFirst('Endereço do Estabelecimento/Domicílio'));
   }
 
   // Tipo do total dos tributos, inferred from how the Visualizar section presents
@@ -332,15 +331,30 @@ async function buildProfileFromNota(template) {
       motivo_nao_tributacao: leadCode(first(SEC.tribMunicipal, 'Tributação do ISSQN')),
       descricao: first(SEC.servico, 'Descrição do serviço'),
       nbs: splitCodeText(first(SEC.servico, 'Item da NBS correspondente ao serviço prestado')),
-      pais_resultado: t('servico.pais_resultado'),
+      // Não aparece no Visualizar (renderiza "-"). Para exportação (modo Consumo no
+      // Exterior) o resultado se verifica no país do tomador — usamos o nome dele, que
+      // o resolvedor mapeia no preenchimento. Fallback ao template fora do exterior.
+      pais_resultado:
+        tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : t('servico.pais_resultado'),
       comercio_exterior: {
         moeda: leadCode(first(SEC.comercioExterior, 'Moeda')), // bare code ('840')
-        modo: t('servico.comercio_exterior.modo'),
-        vinculo: t('servico.comercio_exterior.vinculo'),
-        mec_prest: t('servico.comercio_exterior.mec_prest'),
-        mec_tom: t('servico.comercio_exterior.mec_tom'),
-        mov_bens: t('servico.comercio_exterior.mov_bens'),
-        mdic: t('servico.comercio_exterior.mdic'),
+        // Lidos como o TEXTO exibido na nota; o resolvedor os mapeia para os códigos do
+        // portal no preenchimento. Rótulos exatos do Visualizar (probed 2026-06).
+        modo: first(SEC.comercioExterior, 'Modo de Prestação'),
+        vinculo: first(SEC.comercioExterior, 'Vínculo entre as partes no Negócio'),
+        mec_prest: first(
+          SEC.comercioExterior,
+          'Mecanismo de apoio/fomento ao Comércio Exterior utilizado pelo prestador do serviço',
+        ),
+        mec_tom: first(
+          SEC.comercioExterior,
+          'Mecanismo de apoio/fomento ao Comércio Exterior utilizado pelo tomador do serviço',
+        ),
+        mov_bens: first(SEC.comercioExterior, 'Operação está vinculada à Movimentação Temporária de Bens'),
+        mdic: first(
+          SEC.comercioExterior,
+          'Deseja compartilhar a NFS-e que será gerada a partir desta DPS com o MDIC ?',
+        ),
       },
     },
     tributacao: Object.assign(
@@ -387,12 +401,20 @@ async function buildProfileFromNota(template) {
     ['Município da prestação', profile.servico.municipio.value && profile.servico.municipio.text],
     // CTN/NBS need value AND text: an AJAX select only accepts an injected option with both.
     ['CTN', profile.servico.ctn.value && profile.servico.ctn.text],
-    ['Código municipal', profile.servico.complementar.value],
+    // Código complementar municipal é opcional: só os municípios que desdobram o item
+    // da LC 116 o exigem. Vazio é válido (não entra no relatório de "não consegui ler").
     ['Tributação do ISSQN', profile.servico.motivo_nao_tributacao],
     ['Descrição', profile.servico.descricao],
     ['NBS', profile.servico.nbs.value && profile.servico.nbs.text],
     ['País do resultado', profile.servico.pais_resultado],
     ['Moeda', profile.servico.comercio_exterior.moeda],
+    // Comércio exterior lido como texto da nota — avisa no onboarding se algum não veio.
+    ['Modo de prestação', profile.servico.comercio_exterior.modo],
+    ['Vínculo entre as partes', profile.servico.comercio_exterior.vinculo],
+    ['Mecanismo de apoio (prestador)', profile.servico.comercio_exterior.mec_prest],
+    ['Mecanismo de apoio (tomador)', profile.servico.comercio_exterior.mec_tom],
+    ['Movimentação temporária de bens', profile.servico.comercio_exterior.mov_bens],
+    ['Compartilhar com MDIC', profile.servico.comercio_exterior.mdic],
     ['Situação PIS/COFINS', profile.tributacao.pis_situacao],
     ['Retenção PIS/COFINS', profile.tributacao.pis_retencao],
     // Total dos tributos requirements follow the inferred tipo ('3' requires nothing,
@@ -445,20 +467,8 @@ async function buildProfileFromNota(template) {
     ['Valor (US$)', profile.valor.usd],
   ];
   const missing = required.filter(([, v]) => !v).map(([k]) => k);
-  // The profile fills 'US' (template) as the tomador country — warn when the nota's
-  // displayed country doesn't look like the US, instead of silently mislabeling it.
-  const paisNome = tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : '';
-  if (paisNome && !/estados unidos/i.test(paisNome)) {
-    missing.push(`País do tomador (a nota indica "${paisNome}", mas o perfil usará EUA — confira)`);
-  }
-  // Mesmo cuidado para o intermediário no exterior: o código do país vem do template
-  // ('US'); avisar quando a nota mostra um país que não parece os EUA.
-  const interPaisNome = interLocal === 'exterior' ? intermediario.endereco_exterior.pais_nome : '';
-  if (interPaisNome && !/estados unidos/i.test(interPaisNome)) {
-    missing.push(
-      `País do intermediário (a nota indica "${interPaisNome}", mas o perfil usará EUA — confira)`,
-    );
-  }
+  // (O país do tomador/intermediário e o do resultado agora vêm da própria nota e são
+  // resolvidos contra a lista do portal — não há mais 'US' fixo do template para avisar.)
 
   return { profile, emitente: { cnpj, nome: razaoSocial }, chave, missing };
 }
