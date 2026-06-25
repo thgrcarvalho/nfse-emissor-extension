@@ -158,18 +158,15 @@ const chaveFromUrl = () => (location.pathname.match(/\/(\d{50})(?:\/|$)/) || [])
 // Chave de acesso (50 digits) layout offsets. Keep in sync with popup.js (nota number).
 const CHAVE = { municipio: [0, 7], numero: [23, 36] };
 
-// Builds a profile from the open nota. Client-specific fields come ONLY from the parsed
-// page — an unread field stays empty, never backfilled from the template, so one client's
-// data can never leak into another's profile. The bundled template contributes ONLY
-// scenario constants (regime, comércio-exterior codes) plus the país ISO codes: the nota
-// shows the tomador country only as a display name, and mapping name → ISO would need a
-// country table — so the template's 'US' is used and a warning is raised when the nota's
-// display name doesn't look like the US (the tool is Brasil→EUA-scoped for now).
-// Throws when the emitente CNPJ or the template can't be read (fail loudly rather
-// than build a profile that could be keyed or filled wrong). Returns
-// { profile, emitente, chave, missing } — `missing` lists required fields the parse
-// couldn't read, so the panel warns before the profile is used or saved.
-async function buildProfileFromNota(template) {
+// Builds a profile purely from the open nota — no template, no defaults. Every value
+// comes from the parsed Visualizar page; a field that isn't on the nota stays empty and
+// its fill op is skipped, so the extension never invents data. Country / comércio-exterior
+// fields are stored as the nota's display text and resolved to the portal's own option
+// codes at fill time. Fields the issued nota never shows (regime de apuração do SN, motivo
+// de não informação do NIF) stay empty — the user sets those on the portal. Throws only
+// when the emitente CNPJ can't be read. Returns { profile, emitente, chave, missing } —
+// `missing` lists required fields the parse couldn't read, so the panel warns first.
+async function buildProfileFromNota() {
   const chave = chaveFromUrl();
   const map = notaSectionMap();
   // Scoped lookup: section title + label. No cross-section fallback by design.
@@ -198,15 +195,6 @@ async function buildProfileFromNota(template) {
     : Object.keys(map[SEC.tomador] || {}).find((k) => k !== 'NIF' && /NIF/i.test(k) && !/motivo/i.test(k)) ||
       '';
 
-  if (!template) {
-    throw new Error(
-      'modelo de configuração indisponível — crie src/config.default.json a partir do config.example.json.',
-    );
-  }
-  // Scenario-constant lookup ("page1.regime_sn" → template value, '' when absent).
-  const t = (path) =>
-    path.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), template) ?? '';
-
   const cnpj = first(SEC.emitente, 'CNPJ');
   if (!cnpj) throw new Error('CNPJ do emitente não encontrado na nota — perfil não criado.');
 
@@ -230,9 +218,10 @@ async function buildProfileFromNota(template) {
     tomador.inscricao_municipal = first(SEC.tomador, 'Inscrição Municipal');
   }
   if (tomLocal === 'exterior') {
-    tomador.endereco_exterior = Object.assign(parseExterior(extStr), {
-      pais_codigo: t('tomador.endereco_exterior.pais_codigo'),
-    });
+    // País: guardamos só o NOME lido do endereço ('Estados Unidos da América'); o
+    // resolvedor o mapeia para o código contra a lista de países do próprio portal no
+    // preenchimento — nada de 'US' fixo do template.
+    tomador.endereco_exterior = parseExterior(extStr);
   }
 
   // Intermediário (opcional): inferido da seção do Visualizar cujo título casa /intermedi/i.
@@ -266,10 +255,8 @@ async function buildProfileFromNota(template) {
     intermediario.inscricao_municipal = interFirst('Inscrição Municipal');
   }
   if (interLocal === 'exterior') {
-    intermediario.endereco_exterior = Object.assign(
-      parseExterior(interFirst('Endereço do Estabelecimento/Domicílio')),
-      { pais_codigo: t('intermediario.endereco_exterior.pais_codigo') },
-    );
+    // Como no tomador: só o nome do país, resolvido contra o portal no preenchimento.
+    intermediario.endereco_exterior = parseExterior(interFirst('Endereço do Estabelecimento/Domicílio'));
   }
 
   // Tipo do total dos tributos, inferred from how the Visualizar section presents
@@ -313,9 +300,11 @@ async function buildProfileFromNota(template) {
     cnpj,
     sourceChave: chave, // which nota this profile was built from (marks the default)
     page1: {
-      regime_sn: t('page1.regime_sn'),
-      tomador_motivo_nif: t('page1.tomador_motivo_nif'),
-      intermediario_motivo_nif: t('page1.intermediario_motivo_nif'),
+      // Não aparecem na nota emitida — ficam vazios e o preenchimento NÃO os toca (o
+      // usuário escolhe no portal). Só vêm preenchidos pela config do próprio emitente.
+      regime_sn: '',
+      tomador_motivo_nif: '',
+      intermediario_motivo_nif: '',
     },
     tomador,
     intermediario,
@@ -332,15 +321,29 @@ async function buildProfileFromNota(template) {
       motivo_nao_tributacao: leadCode(first(SEC.tribMunicipal, 'Tributação do ISSQN')),
       descricao: first(SEC.servico, 'Descrição do serviço'),
       nbs: splitCodeText(first(SEC.servico, 'Item da NBS correspondente ao serviço prestado')),
-      pais_resultado: t('servico.pais_resultado'),
+      // Não aparece no Visualizar (renderiza "-"). Para exportação (modo Consumo no
+      // Exterior) o resultado se verifica no país do tomador — usamos o nome dele, que
+      // o resolvedor mapeia no preenchimento. Fallback ao template fora do exterior.
+      pais_resultado: tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : '',
       comercio_exterior: {
         moeda: leadCode(first(SEC.comercioExterior, 'Moeda')), // bare code ('840')
-        modo: t('servico.comercio_exterior.modo'),
-        vinculo: t('servico.comercio_exterior.vinculo'),
-        mec_prest: t('servico.comercio_exterior.mec_prest'),
-        mec_tom: t('servico.comercio_exterior.mec_tom'),
-        mov_bens: t('servico.comercio_exterior.mov_bens'),
-        mdic: t('servico.comercio_exterior.mdic'),
+        // Lidos como o TEXTO exibido na nota; o resolvedor os mapeia para os códigos do
+        // portal no preenchimento. Rótulos exatos do Visualizar (probed 2026-06).
+        modo: first(SEC.comercioExterior, 'Modo de Prestação'),
+        vinculo: first(SEC.comercioExterior, 'Vínculo entre as partes no Negócio'),
+        mec_prest: first(
+          SEC.comercioExterior,
+          'Mecanismo de apoio/fomento ao Comércio Exterior utilizado pelo prestador do serviço',
+        ),
+        mec_tom: first(
+          SEC.comercioExterior,
+          'Mecanismo de apoio/fomento ao Comércio Exterior utilizado pelo tomador do serviço',
+        ),
+        mov_bens: first(SEC.comercioExterior, 'Operação está vinculada à Movimentação Temporária de Bens'),
+        mdic: first(
+          SEC.comercioExterior,
+          'Deseja compartilhar a NFS-e que será gerada a partir desta DPS com o MDIC ?',
+        ),
       },
     },
     tributacao: Object.assign(
@@ -387,12 +390,20 @@ async function buildProfileFromNota(template) {
     ['Município da prestação', profile.servico.municipio.value && profile.servico.municipio.text],
     // CTN/NBS need value AND text: an AJAX select only accepts an injected option with both.
     ['CTN', profile.servico.ctn.value && profile.servico.ctn.text],
-    ['Código municipal', profile.servico.complementar.value],
+    // Código complementar municipal é opcional: só os municípios que desdobram o item
+    // da LC 116 o exigem. Vazio é válido (não entra no relatório de "não consegui ler").
     ['Tributação do ISSQN', profile.servico.motivo_nao_tributacao],
     ['Descrição', profile.servico.descricao],
     ['NBS', profile.servico.nbs.value && profile.servico.nbs.text],
     ['País do resultado', profile.servico.pais_resultado],
     ['Moeda', profile.servico.comercio_exterior.moeda],
+    // Comércio exterior lido como texto da nota — avisa no onboarding se algum não veio.
+    ['Modo de prestação', profile.servico.comercio_exterior.modo],
+    ['Vínculo entre as partes', profile.servico.comercio_exterior.vinculo],
+    ['Mecanismo de apoio (prestador)', profile.servico.comercio_exterior.mec_prest],
+    ['Mecanismo de apoio (tomador)', profile.servico.comercio_exterior.mec_tom],
+    ['Movimentação temporária de bens', profile.servico.comercio_exterior.mov_bens],
+    ['Compartilhar com MDIC', profile.servico.comercio_exterior.mdic],
     ['Situação PIS/COFINS', profile.tributacao.pis_situacao],
     ['Retenção PIS/COFINS', profile.tributacao.pis_retencao],
     // Total dos tributos requirements follow the inferred tipo ('3' requires nothing,
@@ -445,20 +456,8 @@ async function buildProfileFromNota(template) {
     ['Valor (US$)', profile.valor.usd],
   ];
   const missing = required.filter(([, v]) => !v).map(([k]) => k);
-  // The profile fills 'US' (template) as the tomador country — warn when the nota's
-  // displayed country doesn't look like the US, instead of silently mislabeling it.
-  const paisNome = tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : '';
-  if (paisNome && !/estados unidos/i.test(paisNome)) {
-    missing.push(`País do tomador (a nota indica "${paisNome}", mas o perfil usará EUA — confira)`);
-  }
-  // Mesmo cuidado para o intermediário no exterior: o código do país vem do template
-  // ('US'); avisar quando a nota mostra um país que não parece os EUA.
-  const interPaisNome = interLocal === 'exterior' ? intermediario.endereco_exterior.pais_nome : '';
-  if (interPaisNome && !/estados unidos/i.test(interPaisNome)) {
-    missing.push(
-      `País do intermediário (a nota indica "${interPaisNome}", mas o perfil usará EUA — confira)`,
-    );
-  }
+  // (O país do tomador/intermediário e o do resultado agora vêm da própria nota e são
+  // resolvidos contra a lista do portal — não há mais 'US' fixo do template para avisar.)
 
   return { profile, emitente: { cnpj, nome: razaoSocial }, chave, missing };
 }
@@ -567,7 +566,7 @@ ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ ok: false, msg: 'Abra uma nota emitida (Visualizar) para carregar.' });
       return false;
     }
-    buildProfileFromNota(msg.template)
+    buildProfileFromNota()
       .then((r) => sendResponse({ ok: true, ...r }))
       .catch((e) => sendResponse({ ok: false, msg: String((e && e.message) || e) }));
     return true;

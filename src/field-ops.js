@@ -34,6 +34,55 @@
     if (!has && text) el.add(new Option(text, String(value), true, true));
   }
 
+  // Normalize a label so the value stored in the profile matches the portal's own
+  // <option>/radio text: case/accents folded, spaces around . / , ; dropped, trailing
+  // punctuation removed. Bridges the small rendering gaps between the issued nota
+  // ("Adm. Pública…", "…IOF;", "Estados Unidos da América") and the live dropdowns
+  // ("Adm.Pública…", "…IOF", "Estados Unidos").
+  function normLabel(s) {
+    return String(s == null ? '' : s)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s*([./,;])\s*/g, '$1')
+      .replace(/[;.,]+$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Resolve a profile value to an option value that actually exists on the portal's own
+  // control. The value may already be an option CODE (bundled config: "4", "US") or the
+  // nota's DISPLAY TEXT (extracted profile: "Consumo no Exterior", "Estados Unidos da
+  // América"). Returns the matching code, or null when it can't pin down exactly one
+  // option — the caller then fails loud instead of guessing a code on a fiscal document.
+  function resolveOption(options, raw) {
+    const opts = Array.from(options).filter((o) => o.value !== '');
+    const s = String(raw == null ? '' : raw).trim();
+    if (!s) return null;
+    const byCode = opts.find((o) => o.value === s);
+    if (byCode) return byCode.value;
+    const n = normLabel(s);
+    if (!n) return null;
+    const exact = opts.filter((o) => normLabel(o.text) === n);
+    if (exact.length === 1) return exact[0].value;
+    if (exact.length > 1) return null; // ambiguous → fail loud
+    // País: the nota address ("Estados Unidos da América") is longer than the dropdown
+    // ("Estados Unidos"). Accept a unique prefix match in either direction; bail if >1.
+    const pref = opts.filter((o) => {
+      const on = normLabel(o.text);
+      return on && (n === on || n.startsWith(on) || on.startsWith(n));
+    });
+    return pref.length === 1 ? pref[0].value : null;
+  }
+
+  function radioOptions(radios) {
+    return radios.map((r) => {
+      let label = r.id ? (document.querySelector(`label[for="${r.id}"]`) || {}).textContent || '' : '';
+      if (!label && r.parentElement) label = r.parentElement.textContent;
+      return { value: r.value, text: (label || '').replace(/\s+/g, ' ').trim() };
+    });
+  }
+
   function setChosen(sel, value, text) {
     const $ = jq();
     const el = document.querySelector(sel);
@@ -75,6 +124,42 @@
     return { name, ok: r.checked, got: r.checked, err: r.checked ? undefined : 'não ficou marcado' };
   }
 
+  // Like setChosen, but resolves a code-or-text value against the control's EXISTING
+  // options (no ensureOption injection — the portal already lists every país/mecanismo).
+  // For fields read from the nota as display text. Fails loud on no/ambiguous match
+  // rather than write a guessed code.
+  function setResolved(sel, raw) {
+    const $ = jq();
+    const el = document.querySelector(sel);
+    if (!el) return { sel, ok: false, err: 'missing' };
+    el.disabled = false;
+    const code = resolveOption(el.options, raw);
+    if (code == null)
+      return { sel, ok: false, err: `não consegui mapear "${raw}" no portal — selecione manualmente` };
+    if ($) {
+      $(el).val(code).trigger('change');
+      $(el).trigger('chosen:updated');
+    } else {
+      el.value = code;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return { sel, ok: el.value === code, got: el.value };
+  }
+
+  function setResolvedRadio(name, raw) {
+    const radios = Array.from(document.querySelectorAll(`input[name="${name}"]`));
+    if (!radios.length) return { name, ok: false, err: 'missing' };
+    const code = resolveOption(radioOptions(radios), raw);
+    if (code == null)
+      return { name, ok: false, err: `não consegui mapear "${raw}" no portal — selecione manualmente` };
+    const r = radios.find((x) => x.value === code);
+    if (r && !r.checked) {
+      r.disabled = false;
+      r.click();
+    }
+    return { name, ok: !!(r && r.checked), got: !!(r && r.checked) };
+  }
+
   function applyOp(op) {
     // A null/undefined value means the profile lacks this field. Writing it would put
     // the literal string "undefined" in the form (and report ok) — fail the op instead.
@@ -85,7 +170,7 @@
     // fields like telefone/complemento, which use ''); money must also be numeric. An
     // empty string would otherwise be written and report ok ('' === '') — a silent
     // partial fill of a required field. Fail closed, the same way the null guard does.
-    if (op.t === 'money' || op.t === 'chosen' || op.t === 'select2') {
+    if (['money', 'chosen', 'select2', 'resolve', 'resolveRadio'].includes(op.t)) {
       const s = String(op.value).trim();
       if (s === '' || (op.t === 'money' && !/[0-9]/.test(s))) {
         return {
@@ -99,6 +184,8 @@
     if (op.t === 'text' || op.t === 'money') return setText(op.sel, op.value, op.digits);
     if (op.t === 'chosen') return setChosen(op.sel, op.value, op.text);
     if (op.t === 'select2') return setSelect2(op.sel, op.value, op.text);
+    if (op.t === 'resolve') return setResolved(op.sel, op.value);
+    if (op.t === 'resolveRadio') return setResolvedRadio(op.name, op.value);
     if (op.t === 'radio') return setRadio(op.name, op.value);
     return { ok: false, err: 'unknown op ' + op.t };
   }
@@ -106,11 +193,23 @@
   // Does the page still hold the value this op set? (A late AJAX rebuild can wipe it.)
   function selfHolds(op) {
     if (op.name) {
-      const r = document.querySelector(`input[name="${op.name}"][value="${op.value}"]`);
+      let v = op.value;
+      if (op.t === 'resolveRadio') {
+        v = resolveOption(
+          radioOptions(Array.from(document.querySelectorAll(`input[name="${op.name}"]`))),
+          op.value,
+        );
+        if (v == null) return false;
+      }
+      const r = document.querySelector(`input[name="${op.name}"][value="${v}"]`);
       return !!(r && r.checked);
     }
     const el = op.sel && document.querySelector(op.sel);
     if (!el) return false;
+    if (op.t === 'resolve') {
+      const code = resolveOption(el.options, op.value);
+      return code != null && el.value === code;
+    }
     if (op.digits) return el.value.replace(/\D/g, '') === String(op.value).replace(/\D/g, '');
     return el.value === String(op.value);
   }

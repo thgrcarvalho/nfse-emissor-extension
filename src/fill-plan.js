@@ -83,12 +83,17 @@
                 waitAfter: 300,
                 label: 'NIF do intermediário informado (Não)',
               },
-              {
-                t: 'chosen',
-                sel: '#Intermediario_MotivoNaoInformacaoNIF',
-                value: cfg.page1.intermediario_motivo_nif,
-                label: 'Motivo de não informar o NIF do intermediário',
-              },
+              // Motivo do NIF não aparece na nota — só preenche se vier do perfil.
+              ...(cfg.page1.intermediario_motivo_nif
+                ? [
+                    {
+                      t: 'chosen',
+                      sel: '#Intermediario_MotivoNaoInformacaoNIF',
+                      value: cfg.page1.intermediario_motivo_nif,
+                      label: 'Motivo de não informar o NIF do intermediário',
+                    },
+                  ]
+                : []),
             ]),
         { t: 'text', sel: '#Intermediario_Nome', value: itm.nome, label: 'Nome do intermediário' },
         {
@@ -128,9 +133,12 @@
           label: 'Estado/região (intermediário)',
         },
         {
-          t: 'chosen',
+          // value: bundled config carries the ISO code ('US'); a nota-extracted profile
+          // carries the país name read from the address ('Estados Unidos da América').
+          // O resolvedor mapeia qualquer um contra a lista de países do próprio portal.
+          t: 'resolve',
           sel: '#Intermediario_EnderecoExterior_CodigoPais',
-          value: e.pais_codigo,
+          value: e.pais_codigo || e.pais_nome,
           label: 'País (intermediário)',
         },
       );
@@ -169,12 +177,18 @@
       const tom = cfg.tomador;
       const ops = [
         { t: 'text', sel: '#DataCompetencia', value: state.competencia, label: 'Data de competência' },
-        {
-          t: 'chosen',
-          sel: '#SimplesNacional_RegimeApuracaoTributosSN',
-          value: cfg.page1.regime_sn,
-          label: 'Regime do Simples Nacional',
-        },
+        // Regime de apuração do SN não aparece na nota emitida — só preenche quando o
+        // perfil o traz (config do próprio emitente); senão deixa o usuário escolher.
+        ...(cfg.page1.regime_sn
+          ? [
+              {
+                t: 'chosen',
+                sel: '#SimplesNacional_RegimeApuracaoTributosSN',
+                value: cfg.page1.regime_sn,
+                label: 'Regime do Simples Nacional',
+              },
+            ]
+          : []),
       ];
 
       if (tom.local === 'nao_informado') {
@@ -252,12 +266,17 @@
                   waitAfter: 300,
                   label: 'NIF informado (Não)',
                 },
-                {
-                  t: 'chosen',
-                  sel: '#Tomador_MotivoNaoInformacaoNIF',
-                  value: cfg.page1.tomador_motivo_nif,
-                  label: 'Motivo de não informar o NIF',
-                },
+                // Motivo do NIF não aparece na nota — só preenche se vier do perfil.
+                ...(cfg.page1.tomador_motivo_nif
+                  ? [
+                      {
+                        t: 'chosen',
+                        sel: '#Tomador_MotivoNaoInformacaoNIF',
+                        value: cfg.page1.tomador_motivo_nif,
+                        label: 'Motivo de não informar o NIF',
+                      },
+                    ]
+                  : []),
               ]),
           { t: 'text', sel: '#Tomador_Nome', value: tom.nome, label: 'Nome do tomador' },
           {
@@ -282,9 +301,10 @@
             label: 'Estado/região (tomador)',
           },
           {
-            t: 'chosen',
+            // value: ISO code (bundled) ou nome do país lido do endereço (perfil da nota).
+            t: 'resolve',
             sel: '#Tomador_EnderecoExterior_CodigoPais',
-            value: e.pais_codigo,
+            value: e.pais_codigo || e.pais_nome,
             label: 'País (tomador)',
           },
         );
@@ -348,13 +368,21 @@
           waitAfter: 900,
           label: 'Código de Tributação Nacional',
         },
-        {
-          t: 'chosen',
-          sel: '#ServicoPrestado_CodigoComplementarMunicipal',
-          value: s.complementar.value,
-          text: s.complementar.text,
-          label: 'Código complementar municipal',
-        },
+        // Código complementar municipal só existe nos municípios que desdobram o item
+        // da LC 116 em subitens. Quando o município não usa, o perfil vem sem valor —
+        // omitir a op: preenchê-la vazia dispararia um falso "campo com problema" e o
+        // próprio portal valida (ou dispensa) o campo no Avançar.
+        ...(String(s.complementar.value || '').trim()
+          ? [
+              {
+                t: 'chosen',
+                sel: '#ServicoPrestado_CodigoComplementarMunicipal',
+                value: s.complementar.value,
+                text: s.complementar.text,
+                label: 'Código complementar municipal',
+              },
+            ]
+          : []),
         {
           t: 'radio',
           name: 'ServicoPrestado.HaExportacaoImunidadeNaoIncidencia',
@@ -368,12 +396,18 @@
           value: s.motivo_nao_tributacao,
           label: 'Motivo da não tributação',
         },
-        {
-          t: 'chosen',
-          sel: '#ServicoPrestado_CodigoPaisResultado',
-          value: s.pais_resultado,
-          label: 'País do resultado',
-        },
+        // Derivado do país do tomador (não consta da nota); fora do exterior fica vazio
+        // e a op é omitida — o usuário preenche no portal.
+        ...(s.pais_resultado
+          ? [
+              {
+                t: 'resolve',
+                sel: '#ServicoPrestado_CodigoPaisResultado',
+                value: s.pais_resultado,
+                label: 'País do resultado',
+              },
+            ]
+          : []),
         { t: 'text', sel: '#ServicoPrestado_Descricao', value: s.descricao, label: 'Descrição do serviço' },
         {
           t: 'chosen',
@@ -382,9 +416,9 @@
           text: s.nbs.text,
           label: 'Item da NBS',
         },
-        { t: 'chosen', sel: '#ComercioExterior_ModoPrestacao', value: ce.modo, label: 'Modo de prestação' },
+        { t: 'resolve', sel: '#ComercioExterior_ModoPrestacao', value: ce.modo, label: 'Modo de prestação' },
         {
-          t: 'chosen',
+          t: 'resolve',
           sel: '#ComercioExterior_VinculoPrestacao',
           value: ce.vinculo,
           label: 'Vínculo entre as partes',
@@ -397,25 +431,25 @@
           label: 'Valor em moeda estrangeira',
         },
         {
-          t: 'chosen',
+          t: 'resolve',
           sel: '#ComercioExterior_MecanismoApoioPrestador',
           value: ce.mec_prest,
           label: 'Mecanismo de apoio (prestador)',
         },
         {
-          t: 'chosen',
+          t: 'resolve',
           sel: '#ComercioExterior_MecanismoApoioTomador',
           value: ce.mec_tom,
           label: 'Mecanismo de apoio (tomador)',
         },
         {
-          t: 'chosen',
+          t: 'resolve',
           sel: '#ComercioExterior_MovimentacaoTempBens',
           value: ce.mov_bens,
           label: 'Movimentação temporária de bens',
         },
         {
-          t: 'radio',
+          t: 'resolveRadio',
           name: 'ComercioExterior.CompartilharComMDIC',
           value: ce.mdic,
           label: 'Compartilhar com MDIC',
