@@ -736,9 +736,8 @@ async function renderNotaView(tabId) {
   sum.textContent = 'Lendo a nota…';
   let res;
   try {
-    // The content script can't fetch the bundled template itself (it is not
-    // web-accessible) — send it along.
-    res = await ext.tabs.sendMessage(tabId, { action: 'parseNota', template: bundledConfig });
+    // Extraction reads everything from the nota — no template needed.
+    res = await ext.tabs.sendMessage(tabId, { action: 'parseNota' });
   } catch {
     res = null;
   }

@@ -83,12 +83,17 @@
                 waitAfter: 300,
                 label: 'NIF do intermediário informado (Não)',
               },
-              {
-                t: 'chosen',
-                sel: '#Intermediario_MotivoNaoInformacaoNIF',
-                value: cfg.page1.intermediario_motivo_nif,
-                label: 'Motivo de não informar o NIF do intermediário',
-              },
+              // Motivo do NIF não aparece na nota — só preenche se vier do perfil.
+              ...(cfg.page1.intermediario_motivo_nif
+                ? [
+                    {
+                      t: 'chosen',
+                      sel: '#Intermediario_MotivoNaoInformacaoNIF',
+                      value: cfg.page1.intermediario_motivo_nif,
+                      label: 'Motivo de não informar o NIF do intermediário',
+                    },
+                  ]
+                : []),
             ]),
         { t: 'text', sel: '#Intermediario_Nome', value: itm.nome, label: 'Nome do intermediário' },
         {
@@ -172,12 +177,18 @@
       const tom = cfg.tomador;
       const ops = [
         { t: 'text', sel: '#DataCompetencia', value: state.competencia, label: 'Data de competência' },
-        {
-          t: 'chosen',
-          sel: '#SimplesNacional_RegimeApuracaoTributosSN',
-          value: cfg.page1.regime_sn,
-          label: 'Regime do Simples Nacional',
-        },
+        // Regime de apuração do SN não aparece na nota emitida — só preenche quando o
+        // perfil o traz (config do próprio emitente); senão deixa o usuário escolher.
+        ...(cfg.page1.regime_sn
+          ? [
+              {
+                t: 'chosen',
+                sel: '#SimplesNacional_RegimeApuracaoTributosSN',
+                value: cfg.page1.regime_sn,
+                label: 'Regime do Simples Nacional',
+              },
+            ]
+          : []),
       ];
 
       if (tom.local === 'nao_informado') {
@@ -255,12 +266,17 @@
                   waitAfter: 300,
                   label: 'NIF informado (Não)',
                 },
-                {
-                  t: 'chosen',
-                  sel: '#Tomador_MotivoNaoInformacaoNIF',
-                  value: cfg.page1.tomador_motivo_nif,
-                  label: 'Motivo de não informar o NIF',
-                },
+                // Motivo do NIF não aparece na nota — só preenche se vier do perfil.
+                ...(cfg.page1.tomador_motivo_nif
+                  ? [
+                      {
+                        t: 'chosen',
+                        sel: '#Tomador_MotivoNaoInformacaoNIF',
+                        value: cfg.page1.tomador_motivo_nif,
+                        label: 'Motivo de não informar o NIF',
+                      },
+                    ]
+                  : []),
               ]),
           { t: 'text', sel: '#Tomador_Nome', value: tom.nome, label: 'Nome do tomador' },
           {
@@ -380,12 +396,18 @@
           value: s.motivo_nao_tributacao,
           label: 'Motivo da não tributação',
         },
-        {
-          t: 'resolve',
-          sel: '#ServicoPrestado_CodigoPaisResultado',
-          value: s.pais_resultado,
-          label: 'País do resultado',
-        },
+        // Derivado do país do tomador (não consta da nota); fora do exterior fica vazio
+        // e a op é omitida — o usuário preenche no portal.
+        ...(s.pais_resultado
+          ? [
+              {
+                t: 'resolve',
+                sel: '#ServicoPrestado_CodigoPaisResultado',
+                value: s.pais_resultado,
+                label: 'País do resultado',
+              },
+            ]
+          : []),
         { t: 'text', sel: '#ServicoPrestado_Descricao', value: s.descricao, label: 'Descrição do serviço' },
         {
           t: 'chosen',

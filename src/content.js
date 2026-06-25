@@ -158,18 +158,15 @@ const chaveFromUrl = () => (location.pathname.match(/\/(\d{50})(?:\/|$)/) || [])
 // Chave de acesso (50 digits) layout offsets. Keep in sync with popup.js (nota number).
 const CHAVE = { municipio: [0, 7], numero: [23, 36] };
 
-// Builds a profile from the open nota. Client-specific fields come ONLY from the parsed
-// page — an unread field stays empty, never backfilled from the template, so one client's
-// data can never leak into another's profile. The bundled template contributes ONLY
-// scenario constants (regime, comércio-exterior codes) plus the país ISO codes: the nota
-// shows the tomador country only as a display name, and mapping name → ISO would need a
-// country table — so the template's 'US' is used and a warning is raised when the nota's
-// display name doesn't look like the US (the tool is Brasil→EUA-scoped for now).
-// Throws when the emitente CNPJ or the template can't be read (fail loudly rather
-// than build a profile that could be keyed or filled wrong). Returns
-// { profile, emitente, chave, missing } — `missing` lists required fields the parse
-// couldn't read, so the panel warns before the profile is used or saved.
-async function buildProfileFromNota(template) {
+// Builds a profile purely from the open nota — no template, no defaults. Every value
+// comes from the parsed Visualizar page; a field that isn't on the nota stays empty and
+// its fill op is skipped, so the extension never invents data. Country / comércio-exterior
+// fields are stored as the nota's display text and resolved to the portal's own option
+// codes at fill time. Fields the issued nota never shows (regime de apuração do SN, motivo
+// de não informação do NIF) stay empty — the user sets those on the portal. Throws only
+// when the emitente CNPJ can't be read. Returns { profile, emitente, chave, missing } —
+// `missing` lists required fields the parse couldn't read, so the panel warns first.
+async function buildProfileFromNota() {
   const chave = chaveFromUrl();
   const map = notaSectionMap();
   // Scoped lookup: section title + label. No cross-section fallback by design.
@@ -197,15 +194,6 @@ async function buildProfileFromNota(template) {
     ? ''
     : Object.keys(map[SEC.tomador] || {}).find((k) => k !== 'NIF' && /NIF/i.test(k) && !/motivo/i.test(k)) ||
       '';
-
-  if (!template) {
-    throw new Error(
-      'modelo de configuração indisponível — crie src/config.default.json a partir do config.example.json.',
-    );
-  }
-  // Scenario-constant lookup ("page1.regime_sn" → template value, '' when absent).
-  const t = (path) =>
-    path.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), template) ?? '';
 
   const cnpj = first(SEC.emitente, 'CNPJ');
   if (!cnpj) throw new Error('CNPJ do emitente não encontrado na nota — perfil não criado.');
@@ -312,9 +300,11 @@ async function buildProfileFromNota(template) {
     cnpj,
     sourceChave: chave, // which nota this profile was built from (marks the default)
     page1: {
-      regime_sn: t('page1.regime_sn'),
-      tomador_motivo_nif: t('page1.tomador_motivo_nif'),
-      intermediario_motivo_nif: t('page1.intermediario_motivo_nif'),
+      // Não aparecem na nota emitida — ficam vazios e o preenchimento NÃO os toca (o
+      // usuário escolhe no portal). Só vêm preenchidos pela config do próprio emitente.
+      regime_sn: '',
+      tomador_motivo_nif: '',
+      intermediario_motivo_nif: '',
     },
     tomador,
     intermediario,
@@ -334,8 +324,7 @@ async function buildProfileFromNota(template) {
       // Não aparece no Visualizar (renderiza "-"). Para exportação (modo Consumo no
       // Exterior) o resultado se verifica no país do tomador — usamos o nome dele, que
       // o resolvedor mapeia no preenchimento. Fallback ao template fora do exterior.
-      pais_resultado:
-        tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : t('servico.pais_resultado'),
+      pais_resultado: tomLocal === 'exterior' ? tomador.endereco_exterior.pais_nome : '',
       comercio_exterior: {
         moeda: leadCode(first(SEC.comercioExterior, 'Moeda')), // bare code ('840')
         // Lidos como o TEXTO exibido na nota; o resolvedor os mapeia para os códigos do
@@ -577,7 +566,7 @@ ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ ok: false, msg: 'Abra uma nota emitida (Visualizar) para carregar.' });
       return false;
     }
-    buildProfileFromNota(msg.template)
+    buildProfileFromNota()
       .then((r) => sendResponse({ ok: true, ...r }))
       .catch((e) => sendResponse({ ok: false, msg: String((e && e.message) || e) }));
     return true;
