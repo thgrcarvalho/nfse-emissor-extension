@@ -83,7 +83,8 @@
                 waitAfter: 300,
                 label: 'NIF do intermediário informado (Não)',
               },
-              // Motivo do NIF não aparece na nota — só preenche se vier do perfil.
+              // Motivo do NIF não aparece na nota — só preenche se vier do perfil;
+              // sem valor, avisa em vez de omitir em silêncio.
               ...(cfg.page1.intermediario_motivo_nif
                 ? [
                     {
@@ -93,7 +94,13 @@
                       label: 'Motivo de não informar o NIF do intermediário',
                     },
                   ]
-                : []),
+                : [
+                    {
+                      t: 'note',
+                      label: 'Motivo da não informação do NIF (intermediário)',
+                      note: 'sem valor no perfil — selecione no portal (carregue o perfil a partir do XML da nota para automatizar)',
+                    },
+                  ]),
             ]),
         { t: 'text', sel: '#Intermediario_Nome', value: itm.nome, label: 'Nome do intermediário' },
         {
@@ -175,10 +182,51 @@
   window.__nfseFillPlan = function (pageId, cfg, state) {
     if (pageId === 'pessoas') {
       const tom = cfg.tomador;
-      const ops = [
+      // Reforma IBS/CBS (2026): o portal tranca o formulário inteiro até o rádio
+      // "Preencher as informações IBS/CBS?" ser respondido e o destranca via AJAX
+      // depois da competência (BloquearFormulario/LiberarFormulario no bundle). A
+      // ordem daqui segue essa máquina de estados: gate → competência (com o diálogo
+      // de descarte confirmado) → espera a liberação → demais campos.
+      const ibscbs = String(cfg.page1.ibscbs == null ? '0' : cfg.page1.ibscbs);
+      const gateOp = (label) => ({ t: 'radio', name: 'PreencherInfoIBSCBS', value: ibscbs, label });
+      const ops = [];
+      if (ibscbs === '1') {
+        // "Sim" abre o bloco IBS/CBS (Destinatário etc.), nunca mapeado — marcar o
+        // gate e abandonar o bloco no meio seria pior que deixar a escolha manual.
+        ops.push({
+          t: 'note',
+          label: 'Informações IBS/CBS',
+          note: 'o perfil pede "Sim" — marque e preencha o bloco IBS/CBS manualmente (a extensão ainda não preenche esse bloco)',
+        });
+      } else {
+        ops.push(gateOp('Preencher IBS/CBS? (Não)'));
+      }
+      ops.push(
         { t: 'text', sel: '#DataCompetencia', value: state.competencia, label: 'Data de competência' },
+        {
+          t: 'confirmDialog',
+          match: 'alterar a data de compet',
+          timeout: 2500,
+          label: 'Confirmação da troca de competência',
+        },
+      );
+      // O SIM do diálogo descarta o que já estava na página — reafirmar o gate é
+      // no-op quando ele continuou marcado e recuperação quando foi descartado.
+      if (ibscbs !== '1') ops.push(gateOp('Preencher IBS/CBS? (Não) — reconfirmação'));
+      ops.push({
+        t: 'waitSettle',
+        timeout: 15000,
+        until: [
+          { sel: '#DataCompetencia', enabled: true },
+          { sel: 'input[name="Tomador.LocalDomicilio"][value="1"]', enabled: true },
+          { sel: 'input[name="Intermediario.LocalDomicilio"][value="0"]', enabled: true },
+        ],
+        label: 'Liberação do formulário pelo portal',
+      });
+      ops.push(
         // Regime de apuração do SN não aparece na nota emitida — só preenche quando o
-        // perfil o traz (config do próprio emitente); senão deixa o usuário escolher.
+        // perfil o traz (config do emitente ou XML da nota); senão avisa e deixa a
+        // escolha no portal.
         ...(cfg.page1.regime_sn
           ? [
               {
@@ -188,8 +236,14 @@
                 label: 'Regime do Simples Nacional',
               },
             ]
-          : []),
-      ];
+          : [
+              {
+                t: 'note',
+                label: 'Regime de Apuração dos Tributos no Simples Nacional',
+                note: 'sem valor no perfil — selecione no portal (carregue o perfil a partir do XML da nota para automatizar)',
+              },
+            ]),
+      );
 
       if (tom.local === 'nao_informado') {
         // só o rádio — não há seção do tomador; o fluxo segue para o intermediário.
@@ -266,7 +320,8 @@
                   waitAfter: 300,
                   label: 'NIF informado (Não)',
                 },
-                // Motivo do NIF não aparece na nota — só preenche se vier do perfil.
+                // Motivo do NIF não aparece na nota — só preenche se vier do perfil;
+                // sem valor, avisa em vez de omitir em silêncio.
                 ...(cfg.page1.tomador_motivo_nif
                   ? [
                       {
@@ -276,7 +331,13 @@
                         label: 'Motivo de não informar o NIF',
                       },
                     ]
-                  : []),
+                  : [
+                      {
+                        t: 'note',
+                        label: 'Motivo da não informação do NIF',
+                        note: 'sem valor no perfil — selecione no portal (carregue o perfil a partir do XML da nota para automatizar)',
+                      },
+                    ]),
               ]),
           { t: 'text', sel: '#Tomador_Nome', value: tom.nome, label: 'Nome do tomador' },
           {
@@ -397,7 +458,7 @@
           label: 'Motivo da não tributação',
         },
         // Derivado do país do tomador (não consta da nota); fora do exterior fica vazio
-        // e a op é omitida — o usuário preenche no portal.
+        // e a op vira aviso — o usuário preenche no portal.
         ...(s.pais_resultado
           ? [
               {
@@ -407,7 +468,13 @@
                 label: 'País do resultado',
               },
             ]
-          : []),
+          : [
+              {
+                t: 'note',
+                label: 'País do resultado',
+                note: 'sem valor no perfil — selecione no portal',
+              },
+            ]),
         { t: 'text', sel: '#ServicoPrestado_Descricao', value: s.descricao, label: 'Descrição do serviço' },
         {
           t: 'chosen',

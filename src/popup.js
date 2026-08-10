@@ -102,15 +102,16 @@ async function clearSessionProfile(cnpj) {
   } catch {}
 }
 
-// Default competência for the monthly nota: the LAST DAY OF THE PRIOR MONTH — the
-// service is invoiced the month after, so this is the usual competência. `new Date(y, m,
-// 0)` is day 0 of the current month = the last day of the month before it (handles the
-// January→December year rollover). The user can still override the field or the picker.
+// Default competência: TODAY — the notas are emitted with the emission day as
+// competência (the reference XML carries dCompet = the day it was issued), and a
+// default that differs from what the user typed on the portal now triggers the
+// portal's "os demais dados serão perdidos" dialog. PTAX already walks back to the
+// latest closed bulletin when today's fechamento isn't published yet. The user can
+// still override the field or the picker.
 function defaultCompetenciaBR() {
   const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth(), 0);
   const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+  return `${p(now.getDate())}/${p(now.getMonth() + 1)}/${now.getFullYear()}`;
 }
 
 // The <input type="date"> value is ISO (yyyy-mm-dd); everything else here (PTAX fetch,
@@ -350,6 +351,9 @@ function showView(name) {
   ]) {
     $(v).style.display = v === name ? '' : 'none';
   }
+  // O carregador de XML acompanha o painel do cliente: no dashboard (gerenciar/renovar
+  // perfis) e no aviso de perfil ausente (primeira configuração sem abrir uma nota).
+  $('xmlBox').style.display = name === 'idle' || name === 'noProfile' ? '' : 'none';
 }
 
 // The identity bar shows who is logged into the portal right now (whenever logged in).
@@ -791,6 +795,22 @@ function adoptProfileUsd(cnpj, profile, source) {
   saveState();
 }
 
+// Campos que só existem no portal/XML (a página da nota não os renderiza): num
+// re-onboarding a partir do Visualizar, herda-os do perfil já salvo do MESMO cliente
+// em vez de apagá-los. Preserva o "nunca inventa" — o valor veio do próprio cliente —
+// sem perder a automação a cada troca de nota padrão (regressão da v0.3.3).
+const PORTAL_ONLY_FIELDS = ['regime_sn', 'tomador_motivo_nif', 'intermediario_motivo_nif', 'ibscbs'];
+function carryForwardPortalOnly(profile, cnpj) {
+  const prev =
+    storedProfiles[cnpj] || (bundledConfig && onlyDigits(bundledConfig.cnpj) === cnpj ? bundledConfig : null);
+  if (prev && prev.page1 && profile.page1) {
+    for (const k of PORTAL_ONLY_FIELDS) {
+      if (!profile.page1[k] && prev.page1[k]) profile.page1[k] = prev.page1[k];
+    }
+  }
+  return profile;
+}
+
 $('useNota').addEventListener('click', async () => {
   if (!parsedNota || !parsedNota.profile) return;
   const cnpj = notaCnpj();
@@ -799,6 +819,7 @@ $('useNota').addEventListener('click', async () => {
     $('notaStatus').textContent = 'CNPJ do emitente não encontrado na nota.';
     return;
   }
+  carryForwardPortalOnly(parsedNota.profile, cnpj);
   await setSessionProfile(cnpj, parsedNota.profile);
   adoptProfileUsd(cnpj, parsedNota.profile, 'session');
   $('notaStatus').className = 'hint ok';
@@ -815,6 +836,7 @@ $('saveNota').addEventListener('click', async () => {
     return;
   }
   try {
+    carryForwardPortalOnly(parsedNota.profile, cnpj);
     await saveProfileObj(cnpj, parsedNota.profile);
     await clearSessionProfile(cnpj); // saved is now the source of truth, drop any use-once
     adoptProfileUsd(cnpj, parsedNota.profile, 'saved');
@@ -826,8 +848,83 @@ $('saveNota').addEventListener('click', async () => {
   }
 });
 
+// ---- load from the nota's XML file --------------------------------------------------
+// O Visualizar nunca renderiza regime do SN / motivo do NIF — o XML da nota é a única
+// fonte completa. O parser (xml-profile.js) devolve o mesmo contrato do parseNota.
+let parsedXml = null; // { profile, emitente, chave, missing }
+
+function setXmlStatus(text, bad = false) {
+  const el = $('xmlStatus');
+  el.className = bad ? 'hint bad' : 'hint ok';
+  el.textContent = text;
+}
+
+function renderXmlResult(res) {
+  parsedXml = res;
+  const p = res.profile;
+  const notaNumero = res.chave ? parseInt(res.chave.slice(23, 36), 10) : NaN;
+  const row = (k, v) =>
+    `<div><span class="k">${escapeHtml(k)}:</span> ${escapeHtml(v == null ? '' : String(v))}</div>`;
+  const descr = (p.servico && p.servico.descricao) || '';
+  $('xmlSummary').innerHTML =
+    row('Cliente', `${p.label || ''}${p.cnpj ? ' — ' + p.cnpj : ''}`) +
+    (Number.isFinite(notaNumero) ? row('Nota de origem', `nº ${notaNumero}`) : '') +
+    row('Município', p.servico && p.servico.municipio ? p.servico.municipio.text : '') +
+    row('CTN', p.servico && p.servico.ctn ? p.servico.ctn.value : '') +
+    row('Regime SN', p.page1 && p.page1.regime_sn ? p.page1.regime_sn : '—') +
+    row('Alíquota SN', p.tributacao ? p.tributacao.aliquota_sn : '') +
+    row(`Valor padrão (${currencyFor(p).symbol})`, p.valor && p.valor.usd ? fmtUsd(p.valor.usd) : '') +
+    row('Descrição', descr.length > 90 ? descr.slice(0, 90) + '…' : descr);
+  $('xmlSummary').style.display = '';
+  $('xmlMissing').textContent =
+    res.missing && res.missing.length
+      ? `⚠ Não consegui ler do XML: ${res.missing.join(', ')}. Esses campos ficarão vazios — confira antes de usar ou salvar.`
+      : '';
+  $('xmlActions').style.display = '';
+  $('xmlStatus').textContent = '';
+}
+
+$('loadXml').addEventListener('click', () => $('xmlFile').click());
+$('xmlFile').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // let the same file be re-loaded
+  if (!file) return;
+  parsedXml = null;
+  $('xmlSummary').style.display = 'none';
+  $('xmlActions').style.display = 'none';
+  $('xmlMissing').textContent = '';
+  try {
+    renderXmlResult(window.buildProfileFromXml(await file.text()));
+  } catch (err) {
+    setXmlStatus('Não consegui ler o arquivo: ' + err.message, true);
+  }
+});
+$('useXml').addEventListener('click', async () => {
+  if (!parsedXml || !parsedXml.profile) return;
+  const cnpj = onlyDigits(parsedXml.profile.cnpj);
+  carryForwardPortalOnly(parsedXml.profile, cnpj);
+  await setSessionProfile(cnpj, parsedXml.profile);
+  adoptProfileUsd(cnpj, parsedXml.profile, 'session');
+  setXmlStatus('Pronto. Inicie a Emissão completa deste cliente e preencha — sem salvar como padrão.');
+});
+$('saveXml').addEventListener('click', async () => {
+  if (!parsedXml || !parsedXml.profile) return;
+  const cnpj = onlyDigits(parsedXml.profile.cnpj);
+  try {
+    carryForwardPortalOnly(parsedXml.profile, cnpj);
+    await saveProfileObj(cnpj, parsedXml.profile);
+    await clearSessionProfile(cnpj); // saved is now the source of truth, drop any use-once
+    adoptProfileUsd(cnpj, parsedXml.profile, 'saved');
+    setXmlStatus(`Perfil de ${parsedXml.profile.label || cnpj} salvo como padrão.`);
+    await refreshView(); // atualiza a lista de clientes e o banner de referência
+  } catch (err) {
+    setXmlStatus('Erro ao salvar: ' + err.message, true);
+  }
+});
+
 // ---- per-run inputs + fill --------------------------------------------------------
 let rateTimer = null;
+let statusTabId = null; // aba a que a mensagem de #status se refere (limpa na navegação dela)
 
 $('competencia').addEventListener('input', () => {
   const masked = maskDate($('competencia').value);
@@ -1026,7 +1123,9 @@ $('fill').addEventListener('click', async () => {
       return r && r.result;
     })();
     exec.catch(() => {}); // a rejection after the watchdog wins must not go unhandled
-    const outcome = await Promise.race([exec, new Promise((r) => setTimeout(() => r('timeout'), 35000))]);
+    // 60s: o plano da página Pessoas agora espera o portal liberar o formulário (até
+    // 15s) e confirmar o diálogo da competência antes de tocar os campos.
+    const outcome = await Promise.race([exec, new Promise((r) => setTimeout(() => r('timeout'), 60000))]);
     if (outcome === 'timeout') {
       status.className = 'bad';
       status.textContent = 'O preenchimento não respondeu — recarregue a página e tente de novo.';
@@ -1040,14 +1139,23 @@ $('fill').addEventListener('click', async () => {
       status.className = 'bad';
       status.textContent = res.msg || res.err || 'Falha ao preencher.';
     } else {
-      const fails = (res.results || []).filter((r) => !r.ok);
+      const rows = res.results || [];
+      const fails = rows.filter((r) => !r.ok);
+      // Campos que o plano deliberadamente NÃO preencheu (sem valor no perfil, bloco
+      // não suportado): o ✓ sozinho já enganou — a lista diz o que conferir no portal.
+      const notes = rows.filter((r) => r.ok && r.note);
       const labels = { pessoas: 'Pessoas', servico: 'Serviço', valores: 'Valores' };
-      status.className = fails.length ? 'bad' : 'ok';
+      status.className = fails.length ? 'bad' : notes.length ? '' : 'ok';
       status.textContent = fails.length
         ? `${labels[res.pageId]}: ${fails.length} campo(s) com problema:\n` +
           fails.map((f) => `• ${f.label}: ${f.err || f.got}`).join('\n')
-        : `✓ ${labels[res.pageId]} preenchida. Confira e clique em Avançar.`;
+        : `✓ ${labels[res.pageId]} preenchida. Confira e clique em Avançar.` +
+          (notes.length
+            ? `\n⚠ Não preenchido(s) — escolha no portal:\n` +
+              notes.map((n) => `• ${n.label}: ${n.note}`).join('\n')
+            : '');
     }
+    statusTabId = tab.id; // a mensagem vale para ESTA página — a próxima navegação a limpa
   } catch (e) {
     status.className = 'bad';
     status.textContent = 'Erro: ' + e.message;
@@ -1061,7 +1169,14 @@ $('fill').addEventListener('click', async () => {
 // against unrestored run state (runCnpj/runSource) and clobber the persisted USD.
 const ready = init().catch(() => {});
 ext.tabs.onActivated.addListener(() => ready.then(refreshView));
-ext.tabs.onUpdated.addListener((_id, changeInfo, tab) => {
+ext.tabs.onUpdated.addListener((id, changeInfo, tab) => {
+  // O resultado de um preenchimento descreve UMA página: qualquer navegação/recarga da
+  // aba dele o torna obsoleto ("✓ preenchida" sobre um formulário zerado engana).
+  if (statusTabId === id && (changeInfo.status === 'loading' || changeInfo.url)) {
+    statusTabId = null;
+    $('status').textContent = '';
+    $('status').className = '';
+  }
   // Only the active tab drives the panel — background tabs' loads are irrelevant churn.
   if ((changeInfo.status === 'complete' || changeInfo.url) && tab && tab.active) ready.then(refreshView);
 });

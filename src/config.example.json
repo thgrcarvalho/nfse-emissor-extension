@@ -4,7 +4,8 @@
   "page1": {
     "regime_sn": "1",
     "tomador_motivo_nif": "2",
-    "intermediario_motivo_nif": "2"
+    "intermediario_motivo_nif": "2",
+    "ibscbs": "0"
   },
   "tomador": {
     "local": "exterior",

@@ -160,7 +160,49 @@
     return { name, ok: !!(r && r.checked), got: !!(r && r.checked) };
   }
 
+  // O portal (reforma IBS/CBS) abre um $.confirm ("Ao alterar a data de competência,
+  // os demais dados já informados serão perdidos") quando a competência muda com o
+  // formulário já populado. SIM mantém a data e descarta o resto — inofensivo aqui,
+  // porque o plano preenche tudo DEPOIS deste op. Opcional por natureza: sem diálogo
+  // dentro do timeout também é sucesso.
+  async function confirmDialog(op) {
+    const re = new RegExp(op.match, 'i');
+    const until = Date.now() + (op.timeout || 2500);
+    for (;;) {
+      const box = Array.from(document.querySelectorAll('.jconfirm, .modal, [role="dialog"]')).find((d) => {
+        const r = d.getBoundingClientRect(); // fixed-position overlay: offsetParent é null
+        return r.width > 0 && r.height > 0 && re.test(d.textContent || '');
+      });
+      if (box) {
+        const btn = Array.from(box.querySelectorAll('button, a.btn, input[type="button"]')).find((b) =>
+          /^\s*sim\s*$/i.test(b.textContent || b.value || ''),
+        );
+        if (!btn) return { ok: false, err: 'diálogo de confirmação sem botão SIM — confirme manualmente' };
+        btn.click();
+        await sleep(250); // o diálogo fecha e o portal aplica a troca
+        return { ok: true, got: 'confirmado' };
+      }
+      if (Date.now() >= until) return { ok: true, got: 'sem diálogo' };
+      await sleep(150);
+    }
+  }
+
+  // Uma condição de liberação: {sel, enabled} → o controle existe e não está
+  // desabilitado; {sel, filled} → tem valor não-vazio e diferente de '0'. Um seletor
+  // que não casa nada PASSA: se o portal mudar, o preenchimento degrada para o
+  // comportamento antigo (forçar campo a campo) em vez de travar até o watchdog.
+  function settleOk(c) {
+    const el = document.querySelector(c.sel);
+    if (!el) return true;
+    if (c.enabled) return !el.disabled;
+    if (c.filled) return String(el.value || '').trim() !== '' && el.value !== '0';
+    return true;
+  }
+
   function applyOp(op) {
+    // Aviso ao usuário (campo deliberadamente não preenchido): não toca a página e
+    // precisa vir ANTES da guarda de null — não carrega valor por definição.
+    if (op.t === 'note') return { ok: true, note: op.note };
     // A null/undefined value means the profile lacks this field. Writing it would put
     // the literal string "undefined" in the form (and report ok) — fail the op instead.
     if (op.value == null) {
@@ -233,10 +275,23 @@
     for (let i = 0; i < ops.length; i++) {
       const op = ops[i];
       let res;
-      try {
-        res = applyOp(op);
-      } catch (e) {
-        res = { ok: false, err: String((e && e.message) || e) };
+      if (op.t === 'confirmDialog') {
+        res = await confirmDialog(op).catch((e) => ({ ok: false, err: String((e && e.message) || e) }));
+      } else if (op.t === 'waitSettle') {
+        // Espera a máquina de estados do portal liberar o formulário (LiberarFormulario
+        // ao fim do AJAX do cadastro) antes de tocar os campos dependentes. Preencher
+        // durante o ciclo trava os widgets Chosen num cinza órfão: o Liberar reabilita
+        // só o <select> cru, sem chosen:updated (verificado no bundle do portal).
+        const until = Date.now() + (op.timeout || 15000);
+        let settled;
+        while (!(settled = op.until.every(settleOk)) && Date.now() < until) await sleep(150);
+        res = { ok: true, got: settled ? 'liberado' : 'tempo esgotado — seguindo mesmo assim' };
+      } else {
+        try {
+          res = applyOp(op);
+        } catch (e) {
+          res = { ok: false, err: String((e && e.message) || e) };
+        }
       }
       if (op.settleMin) {
         // Unconditional settle: this op triggers a cascade with no DOM-observable

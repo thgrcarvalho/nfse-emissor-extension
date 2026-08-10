@@ -243,7 +243,11 @@
       #profilesBox {
         margin-top: 14px;
       }
-      #profilesBox .boxtitle {
+      #xmlBox {
+        margin-top: 14px;
+      }
+      #profilesBox .boxtitle,
+      #xmlBox .boxtitle {
         font-size: 14px;
         font-weight: 600;
         color: #555;
@@ -542,9 +546,28 @@
       </div>
     </div>
 
+    <div id="xmlBox" style="display: none">
+      <div class="boxtitle">Carregar cliente do XML da nota</div>
+      <p class="hint">
+        Baixe o <strong>XML</strong> de uma nota emitida (no portal, em NFS-e Emitidas ou na própria nota) e
+        carregue aqui. O XML traz até os campos que a página da nota não mostra — regime do Simples Nacional e
+        motivo do NIF — e o preenchimento volta a ser 100% automático.
+      </p>
+      <button id="loadXml" type="button" class="ghost">Escolher o arquivo XML…</button>
+      <input id="xmlFile" type="file" accept=".xml,text/xml,application/xml" hidden />
+      <div class="summary" id="xmlSummary" style="display: none"></div>
+      <div id="xmlMissing" class="hint bad" role="status" aria-live="polite"></div>
+      <div id="xmlActions" class="profactions" style="display: none">
+        <button id="useXml" type="button">Usar nesta emissão</button>
+        <button id="saveXml" type="button" class="ghost">Salvar como padrão</button>
+      </div>
+      <div id="xmlStatus" class="hint" role="status" aria-live="polite"></div>
+    </div>
+
     <div class="versionline" id="versionLine"></div>
 
     <script src="rate.js"></script>
+    <script src="xml-profile.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
