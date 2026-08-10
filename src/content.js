@@ -45,12 +45,20 @@ function readPortalVersion() {
 
 // Reads the logged-in identity from the navbar profile dropdown (present on every
 // logged-in page): razão social + CNPJ. → { nome, cnpj } | null.
+// Production marks the CNPJ with class="cnpj"; Produção Restrita (which runs ahead of
+// prod) serves the same header with a bare <span> — so fall back to the text after the
+// "CNPJ:" label, gated to a full 14-digit match so stray text can never pass for one.
 function readIdentity() {
   const header = document.querySelector('li.dropdown.perfil .dropdown-header');
   if (!header) return null;
+  const text = (header.textContent || '').replace(/\s+/g, ' ');
   const cnpjEl = header.querySelector('span.cnpj');
-  const cnpj = cnpjEl ? cnpjEl.textContent.trim() : null;
-  const nome = (header.textContent || '').replace(/\s+/g, ' ').split(/CNPJ:/i)[0].trim();
+  let cnpj = cnpjEl ? cnpjEl.textContent.trim() : null;
+  if (!cnpj) {
+    const m = text.match(/CNPJ:\s*([\d./-]+)/i);
+    if (m && onlyDigits(m[1]).length === 14) cnpj = m[1];
+  }
+  const nome = text.split(/CNPJ:/i)[0].trim();
   return cnpj ? { nome, cnpj } : null;
 }
 
