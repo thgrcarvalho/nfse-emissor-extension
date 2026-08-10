@@ -74,7 +74,7 @@ for (const name of ['chrome', 'firefox']) {
 // Guard: every engine file popup.js injects must be in the package — popup.js is the
 // source of truth, so a rename there can't silently ship a package with a broken fill.
 const popupSrc = fs.readFileSync(path.join(root, 'src', 'popup.js'), 'utf8');
-const injected = [...popupSrc.matchAll(/'src\/([\w.-]+\.js)'/g)].map((m) => m[1]);
+const injected = [...popupSrc.matchAll(/'\/?src\/([\w.-]+\.js)'/g)].map((m) => m[1]);
 if (!injected.length) throw new Error('no injected engine files found in popup.js — pattern drift?');
 for (const name of ['chrome', 'firefox']) {
   for (const f of injected) {

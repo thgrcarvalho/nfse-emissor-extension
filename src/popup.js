@@ -1011,7 +1011,11 @@ $('fill').addEventListener('click', async () => {
       await ext.scripting.executeScript({
         target: { tabId: tab.id },
         world: 'MAIN',
-        files: ['src/fill-plan.js', 'src/field-ops.js', 'src/shape-guard.js'],
+        // Leading slash = extension-root-relative in BOTH browsers. Without it Firefox
+        // resolves against the calling document (src/popup.html → src/src/…) and the
+        // injection dies with "result is non-structured-clonable data"; Chrome resolves
+        // against the root either way.
+        files: ['/src/fill-plan.js', '/src/field-ops.js', '/src/shape-guard.js'],
       });
       const [r] = await ext.scripting.executeScript({
         target: { tabId: tab.id },
