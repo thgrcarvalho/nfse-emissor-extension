@@ -36,6 +36,16 @@ Como roda dentro do **seu navegador, já logado**, não esbarra nas defesas do p
   e escolha **Usar nesta emissão** (só desta vez) ou **Salvar como padrão deste cliente**
   (fica salvo no navegador). Campos que não puderem ser lidos ficam vazios e o painel
   avisa quais foram.
+- **Cadastro a partir do XML da nota** (recomendado): carregue no painel o XML baixado
+  do portal — ele traz até os campos que a página da nota não mostra (regime de apuração
+  do Simples Nacional, motivo da não informação do NIF), deixando o preenchimento 100%
+  automático. Num recadastro, os campos que só existem no portal são herdados do perfil
+  salvo do mesmo cliente em vez de se perderem.
+- **Reforma IBS/CBS (2026)**: responde sozinha "Não" ao novo "Preencher as informações
+  IBS/CBS?" quando o perfil vem de notas sem o bloco IBS/CBS, respeita o novo bloqueio
+  do formulário do portal (preenche só depois da liberação) e confirma o diálogo de
+  troca da competência. O que não for preenchido automaticamente é listado no painel —
+  nada de ✓ enganoso.
 - **Câmbio automático**: busca a PTAX de fechamento do Banco Central para a data de
   competência escolhida (com aviso quando usa o fechamento de um dia anterior —
   fim de semana/feriado).

@@ -303,16 +303,22 @@ async function buildProfileFromNota() {
   }
 
   const razaoSocial = first(SEC.emitente, 'Razão Social');
+  // Reforma IBS/CBS (2026): uma nota emitida com o bloco IBS/CBS renderiza uma seção
+  // própria no Visualizar; a ausência significa "Não" (ou uma nota anterior ao campo)
+  // — nos dois casos, '0' reproduz a nota, então não é um valor inventado.
+  const hasIbsCbs = Object.keys(map).some((k) => /ibs\s*\/?\s*cbs/i.test(k));
   const profile = {
     label: razaoSocial || 'Cliente',
     cnpj,
     sourceChave: chave, // which nota this profile was built from (marks the default)
     page1: {
-      // Não aparecem na nota emitida — ficam vazios e o preenchimento NÃO os toca (o
-      // usuário escolhe no portal). Só vêm preenchidos pela config do próprio emitente.
+      // Não aparecem na nota emitida — ficam vazios e o preenchimento avisa em vez de
+      // tocá-los (o usuário escolhe no portal). Vêm preenchidos pela config do próprio
+      // emitente, por herança do perfil salvo (carry-forward no painel) ou pelo XML.
       regime_sn: '',
       tomador_motivo_nif: '',
       intermediario_motivo_nif: '',
+      ibscbs: hasIbsCbs ? '1' : '0',
     },
     tomador,
     intermediario,
@@ -478,6 +484,9 @@ async function buildProfileFromNota() {
 // without `tomador` at all is left as-is for the guard to refuse.
 function normalizeProfile(cfg) {
   if (!cfg || !cfg.tomador) return cfg;
+  // Reforma IBS/CBS (2026): perfis anteriores ao campo vêm de notas sem o bloco
+  // IBS/CBS — '0' (Não) reproduz exatamente essas notas, não é um default inventado.
+  if (cfg.page1 && cfg.page1.ibscbs == null) cfg.page1.ibscbs = '0';
   const tom = cfg.tomador;
   if (tom.local == null) tom.local = 'exterior';
   if (!tom.nif || tom.nif.informado == null) {
