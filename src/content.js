@@ -89,18 +89,26 @@ function notaSectionMap() {
   });
   return map;
 }
-// Section titles as the portal renders them (probed live, 2026-06). A missing section
-// or label parses as '' and lands in the missing-fields report — fail loud, never grab
-// a same-named field from another section.
+// Section titles as the portal renders them. The Visualizar page was redesigned
+// between 14/10 and 04/11/2026 (still v1.6.0.0): panels renamed (Emitente →
+// Prestador/Fornecedor, Tomador → Tomador/Adquirente, Tributação Municipal → ISSQN,
+// Tributação Federal → Outros Tributos) and grouped under Pessoas/Serviço/Valores
+// tabs (all panels stay in the DOM). Each key lists the current title first and the
+// legacy one after it; `first` tries them in order. A missing section or label
+// parses as '' and lands in the missing-fields report — fail loud, never grab a
+// same-named field from another section. ("Emitente" is now also a plain LABEL in
+// "Informações da NFS-e" — a label, not a panel, so it never becomes a map key.)
 const SEC = {
-  emitente: 'Emitente',
-  tomador: 'Tomador',
-  tribMunicipal: 'Tributação Municipal',
-  servico: 'Serviço Prestado',
-  comercioExterior: 'Importação/Exportação de Serviço Prestado',
-  tribFederal: 'Tributação Federal',
-  totalTributos: 'Total dos tributos',
+  emitente: ['Prestador/Fornecedor', 'Emitente'],
+  tomador: ['Tomador/Adquirente', 'Tomador'],
+  tribMunicipal: ['ISSQN', 'Tributação Municipal'],
+  servico: ['Serviço Prestado'],
+  comercioExterior: ['Importação/Exportação de Serviço Prestado'],
+  tribFederal: ['Outros Tributos', 'Tributação Federal'],
+  totalTributos: ['Total dos tributos'],
 };
+// The section of `map` that a SEC entry resolves to on this page ('' when absent).
+const secKey = (map, titles) => titles.find((t) => map[t]) || '';
 
 // "140201 - Assistência técnica." → { value: "140201", text: "Assistência técnica." }
 function splitCodeText(v) {
@@ -179,7 +187,7 @@ async function buildProfileFromNota() {
   const map = notaSectionMap();
   // Scoped lookup: section title + label. No cross-section fallback by design.
   const first = (sec, k) => {
-    const s = map[sec];
+    const s = map[secKey(map, sec)];
     return (s && s[k] && s[k][0]) || '';
   };
   const extStr = first(SEC.tomador, 'Endereço do Estabelecimento/Domicílio');
@@ -190,7 +198,7 @@ async function buildProfileFromNota() {
   // Heading drift fails loud: a Tomador-ish section under another title must not
   // silently classify as 'não informado' — local '' is refused at fill time and
   // named in the missing report.
-  const hasTomador = !!map[SEC.tomador];
+  const hasTomador = !!secKey(map, SEC.tomador);
   const tomadorishKey = hasTomador ? '' : Object.keys(map).find((k) => /tomador/i.test(k)) || '';
   const tomInscricao =
     first(SEC.tomador, 'CPF/CNPJ') || first(SEC.tomador, 'CNPJ') || first(SEC.tomador, 'CPF');
@@ -200,8 +208,9 @@ async function buildProfileFromNota() {
   // row) must warn instead of silently parsing as 'NIF não informado'.
   const nifishKey = nifValor
     ? ''
-    : Object.keys(map[SEC.tomador] || {}).find((k) => k !== 'NIF' && /NIF/i.test(k) && !/motivo/i.test(k)) ||
-      '';
+    : Object.keys(map[secKey(map, SEC.tomador)] || {}).find(
+        (k) => k !== 'NIF' && /NIF/i.test(k) && !/motivo/i.test(k),
+      ) || '';
 
   const cnpj = first(SEC.emitente, 'CNPJ');
   if (!cnpj) throw new Error('CNPJ do emitente não encontrado na nota — perfil não criado.');
@@ -273,7 +282,7 @@ async function buildProfileFromNota() {
   // values) for tipos 1 AND 2 — indistinguishable, so they parse as '' (refused at
   // fill time) unless a future portal version words the labels (the pct/val checks
   // below would then start classifying again).
-  const ttSec = map[SEC.totalTributos];
+  const ttSec = map[secKey(map, SEC.totalTributos)];
   const ttKeys = ttSec ? Object.keys(ttSec) : [];
   const ttFind = (re) => {
     const k = ttKeys.find((key) => re.test(key));
@@ -345,6 +354,11 @@ async function buildProfileFromNota() {
         // portal no preenchimento. Rótulos exatos do Visualizar (probed 2026-06).
         modo: first(SEC.comercioExterior, 'Modo de Prestação'),
         vinculo: first(SEC.comercioExterior, 'Vínculo entre as partes no Negócio'),
+        // Até out/2026 o Visualizar antigo exibia estes dois com o rótulo do código
+        // SEGUINTE (bug do portal, provado na Produção Restrita 2026-10-14; "Nenhum" saía
+        // como "ACC…"/"Adm. Pública…"). O Visualizar redesenhado (nov/2026) exibe o
+        // rótulo certo — perfis criados a partir do Visualizar antigo precisam ser
+        // refeitos (a partir da nota ou do XML).
         mec_prest: first(
           SEC.comercioExterior,
           'Mecanismo de apoio/fomento ao Comércio Exterior utilizado pelo prestador do serviço',

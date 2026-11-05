@@ -408,6 +408,41 @@ fetching `runtime.getURL`.
     chosen/select2 '' → recusa, 'US'/'840'/'0' → passa; text '' → passa). Lint/format/build
     verdes.
 
+**v0.4.1 — portal de nov/2026: gate IBS/CBS escondido + input hidden homônimo, e
+Visualizar redesenhado (2026-11-04):** um usuário novo relatou "não funciona" no Chrome;
+reproduzido na Produção Restrita (ainda v1.6.0.0) com o harness da extensão real. Três
+mudanças do portal, nenhuma anunciada:
+1. **Ordem do gate.** O rádio "Preencher as informações IBS/CBS?" agora fica ESCONDIDO
+   (`.retratil` fechado) até a competência ser informada — o portal decide pela data se o
+   IBS/CBS é opcional (`dtAceiteIBSCBS` 01/12/2025 ≤ data < `dtObrigatorioIBSCBS`
+   01/01/2027), forçado ou indisponível. Marcar o gate ANTES da competência (ordem da
+   0.4.0) dispara `ListarMunicipiosParaEmissao` sem data → modal "Não foi possível
+   recuperar a lista de municípios" e formulário meio travado. Plano de Pessoas
+   reordenado: competência → diálogo de descarte → gate → (novo) diálogo "alterar a opção
+   de preenchimento IBS/CBS" → `waitSettle` → demais campos.
+2. **Input hidden homônimo.** O portal pareia o gate com `<input type="hidden"
+   name="PreencherInfoIBSCBS">` ANTES dos rádios no DOM, espelhando o valor marcado.
+   `input[name=…][value="0"]` passava a achar o hidden → `setRadio` via "não ficou marcado",
+   o 2º clique caía no elemento errado e a passada de coerência derrubava o op ("valor não
+   persistiu") mesmo com o rádio marcado. Todo seletor de rádio por name (engine, plano,
+   shape-guard, harness) agora leva `[type="radio"]`.
+3. **Visualizar redesenhado.** Painéis renomeados (Emitente → Prestador/Fornecedor, Tomador →
+   Tomador/Adquirente, Tributação Municipal → ISSQN, Tributação Federal → Outros Tributos),
+   agrupados em abas Pessoas/Serviço/Valores (todos no DOM) e "Emitente" virou RÓTULO em
+   "Informações da NFS-e" (valor "1 - Prestador"). O parser falhava em "CNPJ do emitente não
+   encontrado" — onboarding pelo Visualizar impossível para quem ainda não tem perfil.
+   `SEC` agora lista o título atual e o legado por seção (`secKey` resolve na página).
+   **Bônus:** o Visualizar novo exibe os dois "Mecanismo de apoio" CERTOS (nota com código 1
+   mostra Nenhum; código 2 mostra ACC/Adm.Pública — reconferido nas notas de 14/10) — o
+   deslocamento +1 do Visualizar antigo (provado 2026-10-14) foi corrigido pelo portal, então
+   o `visualizarShift` implementado no mesmo dia foi REMOVIDO antes de sair: com o viewer
+   certo ele viraria o bug. Perfis criados do Visualizar antigo ainda carregam o texto
+   deslocado (ACC/Adm.Pública no lugar de Nenhum) — refazer o onboarding (nota ou XML).
+Verificação: `test-staging-fill.mjs` ✓ em Chromium, Edge 156 e Firefox 159 (extensão real;
+gate Não mantido, formulário liberado, regime/motivo preenchidos) e `roundtrip-variants.mjs` (emissão real + parser no Visualizar
+novo): 11/11 variantes ✓ (mec-visualizar, mec-acc, exterior-contato, nif-sim, nao-informado,
+brasil, tipo-1, tipo-2, intermediario-exterior/nif/brasil) em 2026-11-04.
+
 **Accepted/known limits (documented, not planned):** ~ms read-merge-write race between
 two panels; override consumption needs the panel open at the review-exit; engine
 globals are page-tamperable (inherent to MAIN-world filling); abandoned post-timeout

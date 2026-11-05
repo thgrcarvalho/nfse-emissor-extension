@@ -114,8 +114,11 @@
     return { sel, ok: el.value === String(value), got: el.value };
   }
 
+  // Sempre type="radio": desde nov/2026 o portal pareia o gate PreencherInfoIBSCBS com
+  // um <input type="hidden"> de MESMO name (espelho do valor marcado, antes dos rádios
+  // no DOM) — um seletor só por name/value acha o hidden e vê "desmarcado" para sempre.
   function setRadio(name, value) {
-    const r = document.querySelector(`input[name="${name}"][value="${value}"]`);
+    const r = document.querySelector(`input[type="radio"][name="${name}"][value="${value}"]`);
     if (!r) return { name, ok: false, err: 'missing' };
     if (!r.checked) {
       r.disabled = false;
@@ -147,7 +150,7 @@
   }
 
   function setResolvedRadio(name, raw) {
-    const radios = Array.from(document.querySelectorAll(`input[name="${name}"]`));
+    const radios = Array.from(document.querySelectorAll(`input[type="radio"][name="${name}"]`));
     if (!radios.length) return { name, ok: false, err: 'missing' };
     const code = resolveOption(radioOptions(radios), raw);
     if (code == null)
@@ -238,12 +241,12 @@
       let v = op.value;
       if (op.t === 'resolveRadio') {
         v = resolveOption(
-          radioOptions(Array.from(document.querySelectorAll(`input[name="${op.name}"]`))),
+          radioOptions(Array.from(document.querySelectorAll(`input[type="radio"][name="${op.name}"]`))),
           op.value,
         );
         if (v == null) return false;
       }
-      const r = document.querySelector(`input[name="${op.name}"][value="${v}"]`);
+      const r = document.querySelector(`input[type="radio"][name="${op.name}"][value="${v}"]`);
       return !!(r && r.checked);
     }
     const el = op.sel && document.querySelector(op.sel);
@@ -264,7 +267,7 @@
       return !!el && !el.disabled;
     }
     if (nextOp.name) {
-      const r = document.querySelector(`input[name="${nextOp.name}"][value="${nextOp.value}"]`);
+      const r = document.querySelector(`input[type="radio"][name="${nextOp.name}"][value="${nextOp.value}"]`);
       return !!r && !r.disabled;
     }
     return true;

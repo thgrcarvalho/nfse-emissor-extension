@@ -30,7 +30,10 @@
             nao_informado: {
               cfg: [],
               controls: [
-                ['input[name="Tomador.LocalDomicilio"][value="0"]', 'opção de tomador não informado'],
+                [
+                  'input[type="radio"][name="Tomador.LocalDomicilio"][value="0"]',
+                  'opção de tomador não informado',
+                ],
               ],
             },
             brasil: {
@@ -38,14 +41,24 @@
                 ['tomador', 'inscricao'],
                 ['tomador', 'nome'],
               ],
-              controls: [['input[name="Tomador.LocalDomicilio"][value="1"]', 'opção de tomador no Brasil']],
+              controls: [
+                [
+                  'input[type="radio"][name="Tomador.LocalDomicilio"][value="1"]',
+                  'opção de tomador no Brasil',
+                ],
+              ],
             },
             exterior: {
               cfg: [
                 ['tomador', 'nome'],
                 ['tomador', 'endereco_exterior'],
               ],
-              controls: [['input[name="Tomador.LocalDomicilio"][value="2"]', 'opção de tomador no exterior']],
+              controls: [
+                [
+                  'input[type="radio"][name="Tomador.LocalDomicilio"][value="2"]',
+                  'opção de tomador no exterior',
+                ],
+              ],
             },
           },
         },
@@ -58,11 +71,15 @@
           variants: {
             0: {
               cfg: [['page1', 'tomador_motivo_nif']],
-              controls: [['input[name="Tomador.NIFInformado"][value="0"]', 'opção de NIF não informado']],
+              controls: [
+                ['input[type="radio"][name="Tomador.NIFInformado"][value="0"]', 'opção de NIF não informado'],
+              ],
             },
             1: {
               cfg: [['tomador', 'nif', 'valor']],
-              controls: [['input[name="Tomador.NIFInformado"][value="1"]', 'opção de NIF informado']],
+              controls: [
+                ['input[type="radio"][name="Tomador.NIFInformado"][value="1"]', 'opção de NIF informado'],
+              ],
             },
           },
         },
@@ -78,7 +95,7 @@
               cfg: [],
               controls: [
                 [
-                  'input[name="Intermediario.LocalDomicilio"][value="0"]',
+                  'input[type="radio"][name="Intermediario.LocalDomicilio"][value="0"]',
                   'opção de intermediário não informado',
                 ],
               ],
@@ -89,7 +106,10 @@
                 ['intermediario', 'nome'],
               ],
               controls: [
-                ['input[name="Intermediario.LocalDomicilio"][value="1"]', 'opção de intermediário no Brasil'],
+                [
+                  'input[type="radio"][name="Intermediario.LocalDomicilio"][value="1"]',
+                  'opção de intermediário no Brasil',
+                ],
               ],
             },
             exterior: {
@@ -99,7 +119,7 @@
               ],
               controls: [
                 [
-                  'input[name="Intermediario.LocalDomicilio"][value="2"]',
+                  'input[type="radio"][name="Intermediario.LocalDomicilio"][value="2"]',
                   'opção de intermediário no exterior',
                 ],
               ],
@@ -118,7 +138,7 @@
               cfg: [['page1', 'intermediario_motivo_nif']],
               controls: [
                 [
-                  'input[name="Intermediario.NIFInformado"][value="0"]',
+                  'input[type="radio"][name="Intermediario.NIFInformado"][value="0"]',
                   'opção de NIF do intermediário não informado',
                 ],
               ],
@@ -127,7 +147,7 @@
               cfg: [['intermediario', 'nif', 'valor']],
               controls: [
                 [
-                  'input[name="Intermediario.NIFInformado"][value="1"]',
+                  'input[type="radio"][name="Intermediario.NIFInformado"][value="1"]',
                   'opção de NIF do intermediário informado',
                 ],
               ],
@@ -149,7 +169,7 @@
           ['#LocalPrestacao_CodigoPaisPrestacao', 'país da prestação'],
           ['#LocalPrestacao_CodigoMunicipioPrestacao', 'município da prestação'],
           [
-            'input[name="ServicoPrestado.HaExportacaoImunidadeNaoIncidencia"][value="1"]',
+            'input[type="radio"][name="ServicoPrestado.HaExportacaoImunidadeNaoIncidencia"][value="1"]',
             'opção de exportação/não incidência',
           ],
           ['#ComercioExterior_TipoMoeda', 'campos do comércio exterior (moeda)'],
@@ -205,7 +225,7 @@
               ],
               controls: [
                 [
-                  'input[name="ValorTributos.TipoValorTributos"][value="1"]',
+                  'input[type="radio"][name="ValorTributos.TipoValorTributos"][value="1"]',
                   'opção de informar o valor dos tributos',
                 ],
               ],
@@ -218,7 +238,7 @@
               ],
               controls: [
                 [
-                  'input[name="ValorTributos.TipoValorTributos"][value="2"]',
+                  'input[type="radio"][name="ValorTributos.TipoValorTributos"][value="2"]',
                   'opção de informar o percentual dos tributos',
                 ],
               ],
@@ -231,7 +251,7 @@
               cfg: [['tributacao', 'aliquota_sn']],
               controls: [
                 [
-                  'input[name="ValorTributos.TipoValorTributos"][value="4"]',
+                  'input[type="radio"][name="ValorTributos.TipoValorTributos"][value="4"]',
                   'opção de informar a alíquota do Simples Nacional',
                 ],
               ],
