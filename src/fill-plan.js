@@ -184,23 +184,15 @@
       const tom = cfg.tomador;
       // Reforma IBS/CBS (2026): o portal tranca o formulário inteiro até o rádio
       // "Preencher as informações IBS/CBS?" ser respondido e o destranca via AJAX
-      // depois da competência (BloquearFormulario/LiberarFormulario no bundle). A
-      // ordem daqui segue essa máquina de estados: gate → competência (com o diálogo
-      // de descarte confirmado) → espera a liberação → demais campos.
+      // (BloquearFormulario/LiberarFormulario no bundle). Desde a atualização de
+      // nov/2026 o rádio fica ESCONDIDO até a competência ser informada (o portal
+      // decide pela data se o IBS/CBS é opcional, forçado ou indisponível) e
+      // respondê-lo antes dispara a lista de municípios sem data → "Não foi
+      // possível recuperar a lista de municípios" e formulário meio travado. A
+      // ordem daqui segue essa máquina de estados: competência (com o diálogo de
+      // descarte confirmado) → gate → espera a liberação → demais campos.
       const ibscbs = String(cfg.page1.ibscbs == null ? '0' : cfg.page1.ibscbs);
-      const gateOp = (label) => ({ t: 'radio', name: 'PreencherInfoIBSCBS', value: ibscbs, label });
       const ops = [];
-      if (ibscbs === '1') {
-        // "Sim" abre o bloco IBS/CBS (Destinatário etc.), nunca mapeado — marcar o
-        // gate e abandonar o bloco no meio seria pior que deixar a escolha manual.
-        ops.push({
-          t: 'note',
-          label: 'Informações IBS/CBS',
-          note: 'o perfil pede "Sim" — marque e preencha o bloco IBS/CBS manualmente (a extensão ainda não preenche esse bloco)',
-        });
-      } else {
-        ops.push(gateOp('Preencher IBS/CBS? (Não)'));
-      }
       ops.push(
         { t: 'text', sel: '#DataCompetencia', value: state.competencia, label: 'Data de competência' },
         {
@@ -210,16 +202,34 @@
           label: 'Confirmação da troca de competência',
         },
       );
-      // O SIM do diálogo descarta o que já estava na página — reafirmar o gate é
-      // no-op quando ele continuou marcado e recuperação quando foi descartado.
-      if (ibscbs !== '1') ops.push(gateOp('Preencher IBS/CBS? (Não) — reconfirmação'));
+      if (ibscbs === '1') {
+        // "Sim" abre o bloco IBS/CBS (Destinatário etc.), nunca mapeado — marcar o
+        // gate e abandonar o bloco no meio seria pior que deixar a escolha manual.
+        ops.push({
+          t: 'note',
+          label: 'Informações IBS/CBS',
+          note: 'o perfil pede "Sim" — marque e preencha o bloco IBS/CBS manualmente (a extensão ainda não preenche esse bloco)',
+        });
+      } else {
+        ops.push(
+          { t: 'radio', name: 'PreencherInfoIBSCBS', value: ibscbs, label: 'Preencher IBS/CBS? (Não)' },
+          // Num re-preenchimento com o gate já respondido diferente, o portal pede
+          // confirmação para descartar os dados — SIM, o plano repõe tudo a seguir.
+          {
+            t: 'confirmDialog',
+            match: 'alterar a op[çc][ãa]o de preenchimento IBS',
+            timeout: 1500,
+            label: 'Confirmação da troca do IBS/CBS',
+          },
+        );
+      }
       ops.push({
         t: 'waitSettle',
         timeout: 15000,
         until: [
           { sel: '#DataCompetencia', enabled: true },
-          { sel: 'input[name="Tomador.LocalDomicilio"][value="1"]', enabled: true },
-          { sel: 'input[name="Intermediario.LocalDomicilio"][value="0"]', enabled: true },
+          { sel: 'input[type="radio"][name="Tomador.LocalDomicilio"][value="1"]', enabled: true },
+          { sel: 'input[type="radio"][name="Intermediario.LocalDomicilio"][value="0"]', enabled: true },
         ],
         label: 'Liberação do formulário pelo portal',
       });
