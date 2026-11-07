@@ -45,21 +45,34 @@ function readPortalVersion() {
 
 // Reads the logged-in identity from the navbar profile dropdown (present on every
 // logged-in page): razão social + CNPJ. → { nome, cnpj } | null.
-// Production marks the CNPJ with class="cnpj"; Produção Restrita (which runs ahead of
-// prod) serves the same header with a bare <span> — so fall back to the text after the
-// "CNPJ:" label, gated to a full 14-digit match so stray text can never pass for one.
+// The markup has moved three times in 2026 (class="cnpj" dropped in Aug; identity moved
+// from the dropdown header into the toggle in Nov, production first) — so look in each
+// known container and gate on a full 14-digit "CNPJ: …" match, never on stray text.
 function readIdentity() {
-  const header = document.querySelector('li.dropdown.perfil .dropdown-header');
-  if (!header) return null;
-  const text = (header.textContent || '').replace(/\s+/g, ' ');
-  const cnpjEl = header.querySelector('span.cnpj');
-  let cnpj = cnpjEl ? cnpjEl.textContent.trim() : null;
-  if (!cnpj) {
+  const li = document.querySelector('li.dropdown.perfil');
+  if (!li) return null;
+  const norm = (el) => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
+  // Where the portal has rendered the identity, most specific first:
+  //  - nov/2026 production: inside the toggle, `<span class="nome">` + `<span class="inscricao">
+  //    CNPJ: …</span>` (the dropdown header became the "Meu perfil:" menu title);
+  //  - mid-2026 (still live on Produção Restrita): the dropdown header, name + "CNPJ:" spans;
+  //  - whatever comes next: the whole dropdown, as long as a "CNPJ: …" with 14 digits is there.
+  const scopes = [li.querySelector('.dropdown-toggle .simples'), li.querySelector('.dropdown-header'), li];
+  for (const scope of scopes) {
+    if (!scope) continue;
+    const text = norm(scope);
     const m = text.match(/CNPJ:\s*([\d./-]+)/i);
-    if (m && onlyDigits(m[1]).length === 14) cnpj = m[1];
+    if (!m || onlyDigits(m[1]).length !== 14) continue;
+    const nomeEl = scope.querySelector('.nome');
+    const nome = nomeEl
+      ? norm(nomeEl)
+      : text
+          .split(/CNPJ:/i)[0]
+          .replace(/^Meu perfil:\s*/i, '')
+          .trim();
+    return { nome, cnpj: m[1] };
   }
-  const nome = text.split(/CNPJ:/i)[0].trim();
-  return cnpj ? { nome, cnpj } : null;
+  return null;
 }
 
 const onlyDigits = (s) => String(s || '').replace(/\D/g, '');
@@ -576,31 +589,39 @@ async function resolveFill(override, bundled) {
   return { ok: true, pageId, cfg: normalizeProfile(cfg) };
 }
 
-ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.action === 'detect') {
-    sendResponse({
-      pageId: detectPage(),
-      loggedIn: isLoggedIn(),
-      identity: readIdentity(),
-      portalVersion: readPortalVersion(),
-    });
-    return false;
-  }
-  if (msg.action === 'resolveFill') {
-    resolveFill(msg.profileOverride, msg.bundled)
-      .then(sendResponse)
-      .catch((e) => sendResponse({ ok: false, pageId: detectPage(), msg: String((e && e.message) || e) }));
-    return true; // keep the message channel open for the async reply
-  }
-  if (msg.action === 'parseNota') {
-    if (detectPage() !== 'nota') {
-      sendResponse({ ok: false, msg: 'Abra uma nota emitida (Visualizar) para carregar.' });
+// Injected on every *.nfse.gov.br page (0.4.2): match patterns compare the path
+// case-sensitively, but the portal serves /emissornacional/ as readily as /EmissorNacional/
+// (the login's ReturnUrl keeps whatever case the user typed or bookmarked). With the exact
+// pattern the script never ran on the lowercase URL and the panel showed "Não consegui ler
+// a página". Only the Emissor's pages answer; elsewhere this script is inert.
+const IS_EMISSOR = /^\/EmissorNacional(\/|$)/i.test(location.pathname);
+
+if (IS_EMISSOR)
+  ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.action === 'detect') {
+      sendResponse({
+        pageId: detectPage(),
+        loggedIn: isLoggedIn(),
+        identity: readIdentity(),
+        portalVersion: readPortalVersion(),
+      });
       return false;
     }
-    buildProfileFromNota()
-      .then((r) => sendResponse({ ok: true, ...r }))
-      .catch((e) => sendResponse({ ok: false, msg: String((e && e.message) || e) }));
-    return true;
-  }
-  return false;
-});
+    if (msg.action === 'resolveFill') {
+      resolveFill(msg.profileOverride, msg.bundled)
+        .then(sendResponse)
+        .catch((e) => sendResponse({ ok: false, pageId: detectPage(), msg: String((e && e.message) || e) }));
+      return true; // keep the message channel open for the async reply
+    }
+    if (msg.action === 'parseNota') {
+      if (detectPage() !== 'nota') {
+        sendResponse({ ok: false, msg: 'Abra uma nota emitida (Visualizar) para carregar.' });
+        return false;
+      }
+      buildProfileFromNota()
+        .then((r) => sendResponse({ ok: true, ...r }))
+        .catch((e) => sendResponse({ ok: false, msg: String((e && e.message) || e) }));
+      return true;
+    }
+    return false;
+  });

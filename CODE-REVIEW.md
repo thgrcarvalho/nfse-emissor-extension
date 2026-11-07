@@ -408,6 +408,33 @@ fetching `runtime.getURL`.
     chosen/select2 '' → recusa, 'US'/'840'/'0' → passa; text '' → passa). Lint/format/build
     verdes.
 
+**v0.4.2 — content script não injetava na URL em minúsculas + identidade sumiu do navbar em produção (2026-11-06):** com a 0.4.1
+instalada, o mesmo usuário continuou vendo "Não consegui ler a página do portal" na home do
+Emissor. A captura mostrava a URL `www.nfse.gov.br/emissornacional/` — o portal (IIS/MVC)
+serve o caminho em qualquer caixa e o `ReturnUrl` do login preserva a caixa que o usuário
+digitou ou salvou nos favoritos. Os *match patterns* de `content_scripts` comparam o caminho
+com distinção de caixa, então `https://*.nfse.gov.br/EmissorNacional/*` nunca casava e o
+`content.js` não rodava: o painel falhava no `detect` e mostrava a tela de "recarregue a aba".
+Reproduzido na Produção Restrita (extensão real; `tabs.sendMessage` → "Receiving end does not
+exist" só na URL minúscula). Correção: o manifesto injeta em `https://*.nfse.gov.br/*` (já
+coberto por `host_permissions`) e o `content.js` só registra o listener quando o caminho casa
+com `/^\/EmissorNacional(\/|$)/i` — fora do Emissor fica inerte. O `tabs.query` do botão de
+permissões (Firefox) também passou a buscar o host inteiro e filtrar por `isPortalUrl`, que já
+era insensível à caixa. Verificação: o probe responde nas quatro URLs (home e Notas Emitidas,
+maiúsculas e minúsculas) e o harness de preenchimento real passou no Chromium, Edge e Firefox.
+**Segundo problema, só em produção:** na URL canônica o mesmo usuário via "Não consegui
+identificar o CNPJ logado". O navbar de PRODUÇÃO mudou de novo (ainda v1.6.0.0): a identidade
+saiu do `.dropdown-header` (que virou o título "Meu perfil:" do menu, agora com
+Procuração/Representação, Configurações e Serviços Favoritos) e foi para dentro do toggle —
+`div.simples > span.nome` + `span.inscricao` ("CNPJ: …"). A Produção Restrita ainda serve o
+header antigo (nome + "CNPJ:" no `.dropdown-header`), por isso o harness não pegou. Como o
+`readIdentity` lia só o header, retornava null e o preenchimento ficava bloqueado (fail-closed,
+como desenhado em H3) para TODO MUNDO em produção. `readIdentity` agora procura, nesta ordem,
+em `.dropdown-toggle .simples`, `.dropdown-header` e no `li.dropdown.perfil` inteiro, sempre
+exigindo "CNPJ:" seguido de 14 dígitos; o nome vem de `span.nome` quando existe. Verificado
+com a extensão real no portal de produção (home e Notas Emitidas, nas duas caixas) e na
+Produção Restrita (harness de preenchimento, Chromium/Edge/Firefox).
+
 **v0.4.1 — portal de nov/2026: gate IBS/CBS escondido + input hidden homônimo, e
 Visualizar redesenhado (2026-11-04):** um usuário novo relatou "não funciona" no Chrome;
 reproduzido na Produção Restrita (ainda v1.6.0.0) com o harness da extensão real. Três

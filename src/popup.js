@@ -987,9 +987,13 @@ $('grantPerms').addEventListener('click', async () => {
   }
   $('permsStatus').textContent = '';
   try {
-    // Content scripts only inject on (re)load — refresh every open portal tab.
-    const tabs = await ext.tabs.query({ url: 'https://*.nfse.gov.br/EmissorNacional/*' });
-    await Promise.all(tabs.map((t) => ext.tabs.reload(t.id).catch(() => {})));
+    // Content scripts only inject on (re)load — refresh every open portal tab. The
+    // query pattern is case-sensitive on the path (see isPortalUrl), so match wide and
+    // filter here.
+    const tabs = await ext.tabs.query({ url: 'https://*.nfse.gov.br/*' });
+    await Promise.all(
+      tabs.filter((t) => isPortalUrl(t.url)).map((t) => ext.tabs.reload(t.id).catch(() => {})),
+    );
   } catch {}
   refreshView();
 });
